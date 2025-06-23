@@ -303,6 +303,7 @@ Thumbs.db
 .ai/
 .claude/
 .cursor/
+.bmad-core/
 
 # Trading data and credentials
 *.con

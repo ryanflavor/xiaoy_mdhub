@@ -1,14 +1,23 @@
-import { MarketDataAccount, CreateAccountRequest, UpdateAccountRequest } from './accounts';
-import { Gateway, GatewayControl } from './gateway';
-import { LogEntry, LogFilter } from './logs';
-import { ApiResponse, PaginatedResponse } from './common';
+import {
+  MarketDataAccount,
+  CreateAccountRequest,
+  UpdateAccountRequest,
+} from "./accounts";
+import { Gateway, GatewayControl } from "./gateway";
+import { LogEntry, LogFilter } from "./logs";
+import { ApiResponse, PaginatedResponse } from "./common";
 
 // Account Management API
 export interface AccountsApi {
   getAccounts(): Promise<ApiResponse<MarketDataAccount[]>>;
   getAccount(id: string): Promise<ApiResponse<MarketDataAccount>>;
-  createAccount(data: CreateAccountRequest): Promise<ApiResponse<MarketDataAccount>>;
-  updateAccount(id: string, data: UpdateAccountRequest): Promise<ApiResponse<MarketDataAccount>>;
+  createAccount(
+    data: CreateAccountRequest,
+  ): Promise<ApiResponse<MarketDataAccount>>;
+  updateAccount(
+    id: string,
+    data: UpdateAccountRequest,
+  ): Promise<ApiResponse<MarketDataAccount>>;
   deleteAccount(id: string): Promise<ApiResponse<void>>;
 }
 
@@ -22,7 +31,9 @@ export interface GatewaysApi {
 
 // Logs API
 export interface LogsApi {
-  getLogs(filter?: LogFilter): Promise<ApiResponse<PaginatedResponse<LogEntry>>>;
+  getLogs(
+    filter?: LogFilter,
+  ): Promise<ApiResponse<PaginatedResponse<LogEntry>>>;
   clearLogs(): Promise<ApiResponse<void>>;
   exportLogs(filter?: LogFilter): Promise<ApiResponse<string>>;
 }
@@ -30,15 +41,15 @@ export interface LogsApi {
 // WebSocket Events
 export interface WebSocketEvents {
   // Gateway events
-  'gateway:status': Gateway;
-  'gateway:heartbeat': { gatewayId: string; timestamp: Date };
-  
+  "gateway:status": Gateway;
+  "gateway:heartbeat": { gatewayId: string; timestamp: Date };
+
   // Log events
-  'log:new': LogEntry;
-  
+  "log:new": LogEntry;
+
   // System events
-  'system:status': { status: string; timestamp: Date };
-  'system:error': { error: string; timestamp: Date };
+  "system:status": { status: string; timestamp: Date };
+  "system:error": { error: string; timestamp: Date };
 }
 
 // Authentication

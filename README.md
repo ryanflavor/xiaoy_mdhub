@@ -54,17 +54,20 @@ This project follows a **Modular Monolith** architecture with:
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/xiaoy/xiaoy_mdhub.git
    cd xiaoy_mdhub
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm run install:all
    ```
 
 3. **Set up environment**
+
    ```bash
    cp apps/api/.env.example apps/api/.env
    cp apps/web/.env.example apps/web/.env
@@ -72,13 +75,14 @@ This project follows a **Modular Monolith** architecture with:
    ```
 
 4. **Start development services**
+
    ```bash
    # Start databases and backend
    docker-compose up -d mysql mongodb redis
-   
+
    # Start backend API
    npm run api:dev
-   
+
    # Start frontend (in another terminal)
    npm run web:dev
    ```
@@ -132,7 +136,7 @@ npm run clean         # Clean all build artifacts
 # Backend commands
 npm run api:dev       # Start API in development mode
 
-# Frontend commands  
+# Frontend commands
 npm run web:dev       # Start web app in development mode
 
 # Package management
@@ -158,7 +162,7 @@ npm run install:all   # Install all dependencies
 ### Health Checks
 
 - **Gateway Status**: Real-time connection monitoring
-- **Canary Contracts**: High-liquidity contract heartbeats  
+- **Canary Contracts**: High-liquidity contract heartbeats
 - **System Metrics**: Performance and availability tracking
 
 ### Logging
@@ -179,6 +183,7 @@ npm run install:all   # Install all dependencies
 ### Environment Variables
 
 **Backend (`apps/api/.env`)**:
+
 ```env
 DATABASE_URL=mysql://user:pass@localhost:3306/mdhub
 MONGODB_URL=mongodb://localhost:27017/mdhub
@@ -189,6 +194,7 @@ EMAIL_RECIPIENTS=admin@company.com
 ```
 
 **Frontend (`apps/web/.env`)**:
+
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_WS_URL=ws://localhost:8000
@@ -197,6 +203,7 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8000
 ### Trading Accounts
 
 Configure CTP/SOPT accounts via the web dashboard or API:
+
 - Account credentials (encrypted storage)
 - Priority levels for failover
 - Enable/disable status
@@ -207,11 +214,13 @@ Configure CTP/SOPT accounts via the web dashboard or API:
 ### Production Deployment
 
 1. **Build for production**
+
    ```bash
    npm run build
    ```
 
 2. **Deploy with Docker**
+
    ```bash
    docker-compose -f docker-compose.prod.yml up -d
    ```
@@ -230,7 +239,7 @@ Configure CTP/SOPT accounts via the web dashboard or API:
 ## 📚 Documentation
 
 - **[Project Brief](docs/project_brief.md)** - High-level project overview
-- **[PRD](docs/prd/)** - Detailed product requirements  
+- **[PRD](docs/prd/)** - Detailed product requirements
 - **[Architecture](docs/architecture/)** - Technical architecture details
 - **[Stories](docs/stories/)** - Development user stories
 - **[API Docs](http://localhost:8000/docs)** - Interactive API documentation

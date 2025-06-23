@@ -1,4 +1,4 @@
-import { LogLevel } from './common';
+import { LogLevel } from "./common";
 
 export interface LogEntry {
   id: string;
@@ -12,9 +12,9 @@ export interface LogEntry {
 }
 
 export interface LogFilter {
-  level?: LogLevel | 'ALL';
-  module?: string | 'ALL';
-  gatewayId?: string | 'ALL';
+  level?: LogLevel | "ALL";
+  module?: string | "ALL";
+  gatewayId?: string | "ALL";
   search?: string;
   startDate?: Date;
   endDate?: Date;

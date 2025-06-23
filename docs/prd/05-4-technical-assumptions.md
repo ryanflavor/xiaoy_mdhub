@@ -18,11 +18,11 @@ A layered testing strategy is required:
 
 #### **Additional Technical Assumptions and Requests**
 
-* **Backend**: Python 3.12, FastAPI.
-* **Frontend**: TypeScript, Next.js, Shadcn/ui, Zustand.
-* **Communication**: A hybrid model of REST API (for control) and WebSockets (for real-time data push).
-* **Data Distribution**: ZeroMQ (pyzmq) for internal tick data distribution.
-* **Database**: Support for both MySQL and MongoDB for account management.
-* **Dependencies**: Pinned versions for `vnpy`, `vnpy_ctp`, `vnpy_sopt` are mandatory.
-* **Deployment**: Must be deployed as a Docker container.
-* **Scheduling**: System start/stop will be managed by a host-level `cron` job.
+- **Backend**: Python 3.12, FastAPI.
+- **Frontend**: TypeScript, Next.js, Shadcn/ui, Zustand.
+- **Communication**: A hybrid model of REST API (for control) and WebSockets (for real-time data push).
+- **Data Distribution**: ZeroMQ (pyzmq) for internal tick data distribution.
+- **Database**: Support for both MySQL and MongoDB for account management.
+- **Dependencies**: Pinned versions for `vnpy`, `vnpy_ctp`, `vnpy_sopt` are mandatory.
+- **Deployment**: Must be deployed as a Docker container.
+- **Scheduling**: System start/stop will be managed by a host-level `cron` job.

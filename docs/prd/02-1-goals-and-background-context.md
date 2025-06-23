@@ -4,9 +4,9 @@
 
 The primary goals of this project are to:
 
-* Increase the development efficiency of quantitative strategies.
-* Ensure the continuous and stable operation of these trading strategies.
-* Establish a robust and extensible foundation for future data services, such as bar generation or Greeks calculation.
+- Increase the development efficiency of quantitative strategies.
+- Ensure the continuous and stable operation of these trading strategies.
+- Establish a robust and extensible foundation for future data services, such as bar generation or Greeks calculation.
 
 #### **Background Context**
 

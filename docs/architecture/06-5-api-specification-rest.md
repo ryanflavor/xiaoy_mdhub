@@ -12,12 +12,12 @@ paths:
     get:
       summary: List all configured accounts
       responses:
-        '200':
+        "200":
           description: A list of MarketDataAccount objects.
     post:
       summary: Create a new account
       responses:
-        '201':
+        "201":
           description: The newly created account.
   /api/accounts/{accountId}:
     put:
@@ -29,7 +29,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: The updated account.
   /api/accounts/{accountId}/{action}:
     post:
@@ -45,6 +45,6 @@ paths:
             type: string
             enum: [start, stop, restart]
       responses:
-        '202':
+        "202":
           description: Action accepted.
 ```

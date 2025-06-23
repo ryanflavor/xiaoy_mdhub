@@ -6,7 +6,7 @@ The primary data model for configuration is the `MarketDataAccount`. It will be 
 // Located in packages/shared/types.ts
 export interface MarketDataAccount {
   id: string; // Unique identifier (e.g., 'ctp_main_account')
-  gateway_type: 'ctp' | 'sopt';
+  gateway_type: "ctp" | "sopt";
   settings: {
     // vnpy gateway settings object
     userID?: string;

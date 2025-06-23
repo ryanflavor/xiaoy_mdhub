@@ -1,4 +1,4 @@
-import { BaseEntity, GatewayType, Status } from './common';
+import { BaseEntity, GatewayType, Status } from "./common";
 
 export interface MarketDataAccount extends BaseEntity {
   gatewayType: GatewayType;
@@ -19,12 +19,12 @@ export interface AccountSettings {
   appid?: string;
   md_address?: string;
   td_address?: string;
-  
+
   // SOPT specific settings
   username?: string;
   token?: string;
   server_address?: string;
-  
+
   // Common settings
   host: string;
   port: number;

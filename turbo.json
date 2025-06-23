@@ -26,9 +26,5 @@
       "outputs": []
     }
   },
-  "globalDependencies": [
-    "**/.env.*local",
-    "tsconfig.json",
-    "package.json"
-  ]
+  "globalDependencies": ["**/.env.*local", "tsconfig.json", "package.json"]
 }

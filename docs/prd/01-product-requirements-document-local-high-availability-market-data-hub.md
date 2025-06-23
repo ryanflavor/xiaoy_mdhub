@@ -6,6 +6,6 @@
 
 #### **Change Log**
 
-| Date | Version | Description | Author |
-| :--- | :--- | :--- | :--- |
-| 2025-06-23 | 1.0 | Initial draft created and approved through all sections. | John |
+| Date       | Version | Description                                              | Author |
+| :--------- | :------ | :------------------------------------------------------- | :----- |
+| 2025-06-23 | 1.0     | Initial draft created and approved through all sections. | John   |

@@ -1,10 +1,15 @@
 // Common utility types used across the application
 
-export type Status = 'HEALTHY' | 'UNHEALTHY' | 'STARTING' | 'STOPPED' | 'UNKNOWN';
+export type Status =
+  | "HEALTHY"
+  | "UNHEALTHY"
+  | "STARTING"
+  | "STOPPED"
+  | "UNKNOWN";
 
-export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
 
-export type GatewayType = 'CTP' | 'SOPT';
+export type GatewayType = "CTP" | "SOPT";
 
 export interface BaseEntity {
   id: string;

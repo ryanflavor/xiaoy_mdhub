@@ -6,9 +6,9 @@ Our goal is to create a professional, data-dense, and highly responsive operatio
 
 #### **Key Interaction Paradigms**
 
-* **Real-time Updates**: The dashboard's core data (gateway status, logs) must be pushed in real-time via WebSockets, eliminating the need for manual refreshes.
-* **Direct Manipulation**: Users must be able to directly and instantly control backend services (e.g., start, stop gateways) via UI buttons.
-* **Drill-Down Exploration**: Users should be able to click a high-level summary item (like an "error" status) to navigate to more detailed information (like specific error logs).
+- **Real-time Updates**: The dashboard's core data (gateway status, logs) must be pushed in real-time via WebSockets, eliminating the need for manual refreshes.
+- **Direct Manipulation**: Users must be able to directly and instantly control backend services (e.g., start, stop gateways) via UI buttons.
+- **Drill-Down Exploration**: Users should be able to click a high-level summary item (like an "error" status) to navigate to more detailed information (like specific error logs).
 
 #### **Core Screens and Views**
 

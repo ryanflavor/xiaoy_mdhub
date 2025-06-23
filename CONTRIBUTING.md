@@ -17,6 +17,7 @@ Thank you for your interest in contributing to the Local High-Availability Marke
 ### Prerequisites
 
 Ensure you have the following installed:
+
 - **Node.js** 18+ and npm 8+
 - **Python** 3.12+
 - **Docker** and Docker Compose
@@ -25,17 +26,20 @@ Ensure you have the following installed:
 ### Initial Setup
 
 1. **Fork and clone the repository**
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/xiaoy_mdhub.git
    cd xiaoy_mdhub
    ```
 
 2. **Install all dependencies**
+
    ```bash
    npm run install:all
    ```
 
 3. **Set up pre-commit hooks**
+
    ```bash
    # Install pre-commit (Python)
    pip install pre-commit
@@ -58,10 +62,11 @@ Ensure you have the following installed:
 - **Imports**: Absolute imports using `@/` prefix
 
 **Example**:
+
 ```typescript
 // Good
-import { Gateway } from '@xiaoy-mdhub/shared-types';
-import { useGatewayStore } from '@/store';
+import { Gateway } from "@xiaoy-mdhub/shared-types";
+import { useGatewayStore } from "@/store";
 
 interface GatewayProps {
   gateway: Gateway;
@@ -81,13 +86,14 @@ export function GatewayCard({ gateway, onUpdate }: GatewayProps) {
 - **Docstrings**: Google-style docstrings for all public functions
 
 **Example**:
+
 ```python
 from typing import List, Optional
 from pydantic import BaseModel
 
 class MarketDataAccount(BaseModel):
     """Market data account configuration.
-    
+
     Args:
         id: Unique account identifier
         gateway_type: Type of market data gateway
@@ -96,16 +102,16 @@ class MarketDataAccount(BaseModel):
     id: str
     gateway_type: str
     settings: dict
-    
+
 async def get_account(account_id: str) -> Optional[MarketDataAccount]:
     """Retrieve a market data account by ID.
-    
+
     Args:
         account_id: The unique identifier for the account
-        
+
     Returns:
         The account if found, None otherwise
-        
+
     Raises:
         DatabaseError: If database connection fails
     """
@@ -153,6 +159,7 @@ type(scope): description
 **Types**: feat, fix, docs, style, refactor, test, chore
 
 **Examples**:
+
 ```
 feat(api): add gateway health monitoring endpoint
 
@@ -186,10 +193,10 @@ async def test_get_gateway_health(gateway_service):
     """Test gateway health check functionality."""
     # Arrange
     gateway_id = "test-gateway-1"
-    
+
     # Act
     health = await gateway_service.check_health(gateway_id)
-    
+
     # Assert
     assert health.gateway_id == gateway_id
     assert health.is_healthy is not None
@@ -212,7 +219,7 @@ const mockGateway = {
 describe('GatewayCard', () => {
   it('displays gateway status correctly', () => {
     render(<GatewayCard gateway={mockGateway} onUpdate={() => {}} />);
-    
+
     expect(screen.getByText('Test Gateway')).toBeInTheDocument();
     expect(screen.getByText('HEALTHY')).toBeInTheDocument();
   });
@@ -256,6 +263,7 @@ npm run test:coverage
 ### Before Submitting
 
 1. **Ensure all tests pass**
+
    ```bash
    npm run test
    npm run lint
@@ -272,24 +280,29 @@ npm run test:coverage
 
 ```markdown
 ## Story Reference
+
 - Story: [Story X.Y: Description](link-to-story)
 - Epic: Epic X - Name
 
 ## Changes Made
+
 - [ ] Feature implementation
 - [ ] Tests added/updated
 - [ ] Documentation updated
 - [ ] Acceptance criteria met
 
 ## Testing
+
 - [ ] Unit tests pass
 - [ ] Integration tests pass
 - [ ] Manual testing completed
 
 ## Screenshots (if applicable)
+
 [Add screenshots for UI changes]
 
 ## Notes
+
 [Any additional context or considerations]
 ```
 
@@ -355,6 +368,7 @@ For new features:
 ## 🙏 Recognition
 
 Contributors will be acknowledged in:
+
 - **CONTRIBUTORS.md** file
 - **Release notes** for significant contributions
 - **Architecture documentation** for design contributions

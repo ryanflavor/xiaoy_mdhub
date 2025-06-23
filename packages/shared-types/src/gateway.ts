@@ -1,4 +1,4 @@
-import { GatewayType, Status } from './common';
+import { GatewayType, Status } from "./common";
 
 export interface Gateway {
   id: string;
@@ -23,7 +23,7 @@ export interface ConnectionInfo {
 }
 
 export interface GatewayControl {
-  action: 'start' | 'stop' | 'restart' | 'hard_restart';
+  action: "start" | "stop" | "restart" | "hard_restart";
   gatewayId: string;
 }
 
@@ -31,6 +31,6 @@ export interface GatewayHealthCheck {
   gatewayId: string;
   isHealthy: boolean;
   lastCheck: Date;
-  checkType: 'connection' | 'heartbeat' | 'canary';
+  checkType: "connection" | "heartbeat" | "canary";
   details?: Record<string, any>;
 }
