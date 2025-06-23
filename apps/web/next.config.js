@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    // Enable app directory for the new Next.js 13+ app router
-    appDir: true,
-  },
+  // App directory is now default in Next.js 14+, no experimental flag needed
   // Enable standalone output for Docker
   output: "standalone",
   // Transpile packages from the monorepo
