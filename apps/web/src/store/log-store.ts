@@ -1,10 +1,10 @@
-import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 
 export interface LogEntry {
   id: string;
   timestamp: Date;
-  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+  level: "DEBUG" | "INFO" | "WARN" | "ERROR";
   message: string;
   module: string;
   details?: Record<string, any>;
@@ -14,16 +14,16 @@ export interface LogState {
   logs: LogEntry[];
   filteredLogs: LogEntry[];
   filters: {
-    level: LogEntry['level'] | 'ALL';
-    module: string | 'ALL';
+    level: LogEntry["level"] | "ALL";
+    module: string | "ALL";
     search: string;
   };
   maxLogs: number;
 
   // Actions
-  addLog: (log: Omit<LogEntry, 'id'>) => void;
+  addLog: (log: Omit<LogEntry, "id">) => void;
   clearLogs: () => void;
-  setFilters: (filters: Partial<LogState['filters']>) => void;
+  setFilters: (filters: Partial<LogState["filters"]>) => void;
   setMaxLogs: (maxLogs: number) => void;
 }
 
@@ -34,9 +34,9 @@ export const useLogStore = create<LogState>()(
       logs: [],
       filteredLogs: [],
       filters: {
-        level: 'ALL',
-        module: 'ALL',
-        search: '',
+        level: "ALL",
+        module: "ALL",
+        search: "",
       },
       maxLogs: 1000,
 
@@ -59,14 +59,14 @@ export const useLogStore = create<LogState>()(
             };
           },
           false,
-          'addLog'
+          "addLog",
         ),
 
       clearLogs: () =>
         set(
           (state) => ({ ...state, logs: [], filteredLogs: [] }),
           false,
-          'clearLogs'
+          "clearLogs",
         ),
 
       setFilters: (newFilters) =>
@@ -82,7 +82,7 @@ export const useLogStore = create<LogState>()(
             };
           },
           false,
-          'setFilters'
+          "setFilters",
         ),
 
       setMaxLogs: (maxLogs) =>
@@ -99,30 +99,36 @@ export const useLogStore = create<LogState>()(
             };
           },
           false,
-          'setMaxLogs'
+          "setMaxLogs",
         ),
     }),
     {
-      name: 'log-store',
-    }
-  )
+      name: "log-store",
+    },
+  ),
 );
 
 // Helper function to apply filters
-function applyFilters(logs: LogEntry[], filters: LogState['filters']): LogEntry[] {
+function applyFilters(
+  logs: LogEntry[],
+  filters: LogState["filters"],
+): LogEntry[] {
   return logs.filter((log) => {
     // Level filter
-    if (filters.level !== 'ALL' && log.level !== filters.level) {
+    if (filters.level !== "ALL" && log.level !== filters.level) {
       return false;
     }
 
     // Module filter
-    if (filters.module !== 'ALL' && log.module !== filters.module) {
+    if (filters.module !== "ALL" && log.module !== filters.module) {
       return false;
     }
 
     // Search filter
-    if (filters.search && !log.message.toLowerCase().includes(filters.search.toLowerCase())) {
+    if (
+      filters.search &&
+      !log.message.toLowerCase().includes(filters.search.toLowerCase())
+    ) {
       return false;
     }
 

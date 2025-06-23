@@ -1,11 +1,11 @@
-import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 
 export interface AppState {
   // Connection status
   isConnected: boolean;
-  connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error';
-  
+  connectionStatus: "connecting" | "connected" | "disconnected" | "error";
+
   // Authentication
   isAuthenticated: boolean;
   user: {
@@ -16,10 +16,10 @@ export interface AppState {
   // UI state
   sidebarOpen: boolean;
   darkMode: boolean;
-  
+
   // Actions
-  setConnectionStatus: (status: AppState['connectionStatus']) => void;
-  setAuthenticated: (authenticated: boolean, user?: AppState['user']) => void;
+  setConnectionStatus: (status: AppState["connectionStatus"]) => void;
+  setAuthenticated: (authenticated: boolean, user?: AppState["user"]) => void;
   toggleSidebar: () => void;
   toggleDarkMode: () => void;
 }
@@ -29,7 +29,7 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       // Initial state
       isConnected: false,
-      connectionStatus: 'disconnected',
+      connectionStatus: "disconnected",
       isAuthenticated: false,
       user: null,
       sidebarOpen: true,
@@ -41,10 +41,10 @@ export const useAppStore = create<AppState>()(
           (state) => ({
             ...state,
             connectionStatus: status,
-            isConnected: status === 'connected',
+            isConnected: status === "connected",
           }),
           false,
-          'setConnectionStatus'
+          "setConnectionStatus",
         ),
 
       setAuthenticated: (authenticated, user = null) =>
@@ -55,25 +55,25 @@ export const useAppStore = create<AppState>()(
             user: authenticated ? user : null,
           }),
           false,
-          'setAuthenticated'
+          "setAuthenticated",
         ),
 
       toggleSidebar: () =>
         set(
           (state) => ({ ...state, sidebarOpen: !state.sidebarOpen }),
           false,
-          'toggleSidebar'
+          "toggleSidebar",
         ),
 
       toggleDarkMode: () =>
         set(
           (state) => ({ ...state, darkMode: !state.darkMode }),
           false,
-          'toggleDarkMode'
+          "toggleDarkMode",
         ),
     }),
     {
-      name: 'app-store',
-    }
-  )
+      name: "app-store",
+    },
+  ),
 );

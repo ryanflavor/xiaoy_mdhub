@@ -1,11 +1,11 @@
-import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 
 export interface Gateway {
   id: string;
   name: string;
-  type: 'CTP' | 'SOPT';
-  status: 'HEALTHY' | 'UNHEALTHY' | 'STARTING' | 'STOPPED';
+  type: "CTP" | "SOPT";
+  status: "HEALTHY" | "UNHEALTHY" | "STARTING" | "STOPPED";
   priority: number;
   isEnabled: boolean;
   lastHeartbeat: Date | null;
@@ -19,7 +19,7 @@ export interface Gateway {
 export interface GatewayState {
   gateways: Gateway[];
   selectedGateway: Gateway | null;
-  
+
   // Actions
   setGateways: (gateways: Gateway[]) => void;
   updateGateway: (id: string, updates: Partial<Gateway>) => void;
@@ -37,36 +37,32 @@ export const useGatewayStore = create<GatewayState>()(
 
       // Actions
       setGateways: (gateways) =>
-        set(
-          (state) => ({ ...state, gateways }),
-          false,
-          'setGateways'
-        ),
+        set((state) => ({ ...state, gateways }), false, "setGateways"),
 
       updateGateway: (id, updates) =>
         set(
           (state) => ({
             ...state,
             gateways: state.gateways.map((gateway) =>
-              gateway.id === id ? { ...gateway, ...updates } : gateway
+              gateway.id === id ? { ...gateway, ...updates } : gateway,
             ),
           }),
           false,
-          'updateGateway'
+          "updateGateway",
         ),
 
       selectGateway: (gateway) =>
         set(
           (state) => ({ ...state, selectedGateway: gateway }),
           false,
-          'selectGateway'
+          "selectGateway",
         ),
 
       addGateway: (gateway) =>
         set(
           (state) => ({ ...state, gateways: [...state.gateways, gateway] }),
           false,
-          'addGateway'
+          "addGateway",
         ),
 
       removeGateway: (id) =>
@@ -78,11 +74,11 @@ export const useGatewayStore = create<GatewayState>()(
               state.selectedGateway?.id === id ? null : state.selectedGateway,
           }),
           false,
-          'removeGateway'
+          "removeGateway",
         ),
     }),
     {
-      name: 'gateway-store',
-    }
-  )
+      name: "gateway-store",
+    },
+  ),
 );

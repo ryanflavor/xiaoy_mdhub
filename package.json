@@ -19,7 +19,14 @@
     "api:dev": "cd apps/api && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
     "web:dev": "cd apps/web && npm run dev",
     "install:all": "npm install && npm run install:api",
-    "install:api": "cd apps/api && pip install -r requirements.txt"
+    "install:api": "cd apps/api && pip install -r requirements.txt",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "local:setup": "npm run install:all && npm run docker:build",
+    "local:start": "npm run docker:up && echo 'Application started at http://localhost:3000'",
+    "local:stop": "npm run docker:down"
   },
   "devDependencies": {
     "turbo": "^1.10.0",
