@@ -46,6 +46,7 @@ This project follows a **Modular Monolith** architecture with:
 
 ### Prerequisites
 
+- **Ubuntu 24.04** (目标操作系统)
 - **Node.js** 18+ and npm 8+
 - **Python** 3.12+
 - **Docker** and Docker Compose
@@ -60,13 +61,27 @@ This project follows a **Modular Monolith** architecture with:
    cd xiaoy_mdhub
    ```
 
-2. **Install dependencies**
+2. **Install vnpy system dependencies (Ubuntu 24.04)**
+
+   ```bash
+   ./scripts/install-vnpy-deps.sh
+   ```
+
+3. **Install vnpy required components**
+
+   vnpy_ctp 和 vnpy_sopt 是项目行情源的必需组件：
+
+   ```bash
+   npm run setup:vnpy
+   ```
+
+4. **Install all dependencies**
 
    ```bash
    npm run install:all
    ```
 
-3. **Set up environment**
+5. **Set up environment**
 
    ```bash
    cp apps/api/.env.example apps/api/.env
@@ -74,7 +89,7 @@ This project follows a **Modular Monolith** architecture with:
    # Edit .env files with your configuration
    ```
 
-4. **Start development services**
+6. **Start development services**
 
    ```bash
    # Start databases and backend

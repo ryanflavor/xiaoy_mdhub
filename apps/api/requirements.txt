@@ -2,10 +2,11 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 
-# Trading and market data libraries (pinned versions for stability)
-vnpy==4.1.0
-vnpy_ctp==6.7.7.2
-vnpy_sopt==3.7.1.0
+# 交易和行情数据库 - 项目核心必需组件
+# 系统依赖: sudo apt install build-essential cmake libboost-all-dev python3-dev
+vnpy>=4.0.0
+vnpy_ctp>=6.7.0    # CTP 行情接口 - 必需
+vnpy_sopt>=3.7.0   # SOPT 期权接口 - 必需
 
 # Database dependencies
 sqlalchemy==2.0.23
@@ -19,8 +20,8 @@ msgpack==1.0.7
 websockets==12.0
 
 # Data processing and utilities
-pandas==2.1.4
-numpy==1.25.2
+pandas>=2.0.0
+numpy>=1.24.0
 pydantic==2.5.0
 python-multipart==0.0.6
 

@@ -1,5 +1,5 @@
 # Multi-stage build for FastAPI application
-FROM python:3.11-slim AS base
+FROM python:3.12-slim AS base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -7,10 +7,17 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
+# Install system dependencies for vnpy_ctp
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    build-essential \
     gcc \
+    g++ \
+    cmake \
+    pkg-config \
+    libboost-all-dev \
+    libboost-python-dev \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
