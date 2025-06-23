@@ -14,15 +14,15 @@
 ## Detailed Acceptance Criteria
 
 ### AC1: Initialize Git Repository
-- [ ] Create new Git repository in current directory
-- [ ] Add initial `.gitignore` with Python, Node.js, and Docker exclusions
-- [ ] Create initial commit with project structure
+- [x] Create new Git repository in current directory
+- [x] Add initial `.gitignore` with Python, Node.js, and Docker exclusions
+- [x] Create initial commit with project structure
 
 ### AC2: Configure Root Package.json
-- [ ] Create root `package.json` with workspace configuration
-- [ ] Configure scripts for monorepo management
-- [ ] Set up Turborepo configuration in `turborepo.json`
-- [ ] Include workspace paths: `"workspaces": ["apps/*", "packages/*"]`
+- [x] Create root `package.json` with workspace configuration
+- [x] Configure scripts for monorepo management
+- [x] Set up Turborepo configuration in `turbo.json`
+- [x] Include workspace paths: `"workspaces": ["apps/*", "packages/*"]`
 
 ### AC3: Create Monorepo Directory Structure
 ```
@@ -39,26 +39,26 @@
 ```
 
 ### AC4: Backend Package Foundation (apps/api/)
-- [ ] Create `apps/api/` directory
-- [ ] Add `requirements.txt` with FastAPI, uvicorn, vnpy dependencies
-- [ ] Create basic Python package structure with `__init__.py`
-- [ ] Add `pyproject.toml` or `setup.py` for package configuration
+- [x] Create `apps/api/` directory
+- [x] Add `requirements.txt` with FastAPI, uvicorn, vnpy dependencies
+- [x] Create basic Python package structure with `__init__.py`
+- [x] Add `pyproject.toml` for package configuration
 
 ### AC5: Frontend Package Foundation (apps/web/)
-- [ ] Create `apps/web/` directory  
-- [ ] Initialize Next.js TypeScript project
-- [ ] Add Shadcn/ui configuration
-- [ ] Configure Zustand for state management
+- [x] Create `apps/web/` directory  
+- [x] Initialize Next.js TypeScript project
+- [x] Add Shadcn/ui configuration
+- [x] Configure Zustand for state management
 
 ### AC6: Shared Packages Setup
-- [ ] Create `packages/shared-types/` with TypeScript interfaces
-- [ ] Create `packages/ui/` for shared components (optional)
-- [ ] Configure proper TypeScript path resolution between packages
+- [x] Create `packages/shared-types/` with TypeScript interfaces
+- [x] Create `packages/ui/` for shared components (optional)
+- [x] Configure proper TypeScript path resolution between packages
 
 ### AC7: Documentation Files
-- [ ] Create comprehensive `README.md` with setup instructions
-- [ ] Add `CONTRIBUTING.md` with development guidelines  
-- [ ] Include architecture overview and getting started guide
+- [x] Create comprehensive `README.md` with setup instructions
+- [x] Add `CONTRIBUTING.md` with development guidelines  
+- [x] Include architecture overview and getting started guide
 
 ## Technical Implementation Notes
 

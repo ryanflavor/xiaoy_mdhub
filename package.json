@@ -1,0 +1,52 @@
+{
+  "name": "xiaoy-mdhub",
+  "version": "1.0.0",
+  "description": "Local High-Availability Market Data Hub - A system for aggregating and distributing market data from multiple sources with automatic failover",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "api:dev": "cd apps/api && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+    "web:dev": "cd apps/web && npm run dev",
+    "install:all": "npm install && npm run install:api",
+    "install:api": "cd apps/api && pip install -r requirements.txt"
+  },
+  "devDependencies": {
+    "turbo": "^1.10.0",
+    "prettier": "^3.0.0",
+    "npm-run-all": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiaoy/xiaoy_mdhub.git"
+  },
+  "keywords": [
+    "market-data",
+    "high-availability",
+    "trading",
+    "vnpy",
+    "ctp",
+    "sopt",
+    "zeromq",
+    "fastapi",
+    "nextjs",
+    "monorepo"
+  ],
+  "author": "John, Product Manager",
+  "license": "MIT",
+  "packageManager": "npm@8.19.0"
+}
