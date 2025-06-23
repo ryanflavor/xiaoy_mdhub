@@ -1,0 +1,24 @@
+# ================================
+# DEVELOPMENT DEPENDENCIES
+# ================================
+
+# Include production dependencies
+-r requirements.txt
+
+# Development and testing (Python 3.12 compatible)
+pytest==7.4.4
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+httpx==0.25.2
+
+# Code quality and formatting (Python 3.12 compatible)
+black==24.3.0
+isort==5.13.2
+flake8==7.0.0
+mypy==1.8.0
+pre-commit==3.6.2
+
+# Development utilities (Python 3.12 compatible)
+ipython==8.22.2
+jupyter==1.0.0
+notebook==7.1.2

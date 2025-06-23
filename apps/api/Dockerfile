@@ -7,7 +7,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies for vnpy_ctp
+# Install system dependencies for vnpy_ctp and ta-lib
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
@@ -18,7 +18,19 @@ RUN apt-get update && \
     libboost-all-dev \
     libboost-python-dev \
     python3-dev \
+    wget \
     && rm -rf /var/lib/apt/lists/*
+
+# Install ta-lib from source
+RUN cd /tmp && \
+    wget https://pip.vnpy.com/colletion/ta-lib-0.6.4-src.tar.gz && \
+    tar -xf ta-lib-0.6.4-src.tar.gz && \
+    cd ta-lib-0.6.4 && \
+    ./configure --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd / && rm -rf /tmp/ta-lib*
 
 # Create app user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
@@ -28,7 +40,10 @@ WORKDIR /app
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir numpy==2.2.3 && \
+    pip install --no-cache-dir ta-lib==0.6.4 && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .

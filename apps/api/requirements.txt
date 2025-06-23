@@ -1,12 +1,25 @@
+# ================================
+# PRODUCTION DEPENDENCIES
+# ================================
+
 # Core FastAPI dependencies
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 
 # 交易和行情数据库 - 项目核心必需组件
 # 系统依赖: sudo apt install build-essential cmake libboost-all-dev python3-dev
-vnpy>=4.0.0
-vnpy_ctp>=6.7.0    # CTP 行情接口 - 必需
-vnpy_sopt>=3.7.0   # SOPT 期权接口 - 必需
+ta-lib==0.6.4      # 技术分析库 - vnpy 依赖
+vnpy==4.0.0        # 固定版本避免兼容性问题
+vnpy_ctp==6.7.7.2  # CTP 行情接口 - 必需 (最新可用版本)
+vnpy_sopt==3.7.1.0 # SOPT 期权接口 - 必需 (最新可用版本)
+
+# Data processing (core dependencies) - Python 3.12 compatible
+numpy>=2.2.3          # vnpy 4.0.0 requires numpy>=2.2.3
+pandas==2.3.0         # 固定版本确保兼容性
+pydantic==2.11.7      # 固定版本避免兼容性问题
+pydantic-core==2.33.2 # pydantic 必需依赖
+python-multipart==0.0.6
+typing-extensions==4.14.0  # Python 3.12 必需
 
 # Database dependencies
 sqlalchemy==2.0.23
@@ -15,33 +28,72 @@ pymongo==4.6.0
 alembic==1.13.1
 
 # Communication and messaging
-pyzmq==25.1.1
+pyzmq==26.3.0
 msgpack==1.0.7
 websockets==12.0
-
-# Data processing and utilities
-pandas>=2.0.0
-numpy>=1.24.0,<3.0.0  # 确保与 Python 3.12 兼容
-pydantic==2.5.0
-python-multipart==0.0.6
-
-# Development and testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.25.2
-black==23.11.0
-isort==5.12.0
-flake8==6.1.0
-mypy==1.7.1
 
 # Environment and configuration
 python-dotenv==1.0.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
+# GUI and visualization (Python 3.12 compatible)
+PySide6==6.9.1
+PySide6-Essentials==6.9.1
+PySide6-Addons==6.9.1
+shiboken6==6.9.1
+pyqtgraph==0.13.7
+qtpy==2.4.3
+qdarkstyle==3.2.3
+plotly==6.1.2
+
+# Scientific computing
+tqdm==4.67.1
+pytz==2025.2
+tzdata==2025.2
+tzlocal==5.3.1
+python-dateutil==2.9.0.post0
+
 # Monitoring and logging
 structlog==23.2.0
 prometheus-client==0.19.0
+loguru==0.7.3
 
-# Email notifications (使用标准库，无需额外依赖)
-# smtplib 是 Python 标准库的一部分
+# Additional dependencies for Python 3.12
+annotated-types==0.7.0
+anyio==3.7.1
+attrs==25.3.0
+bcrypt==4.3.0
+cffi==1.17.1
+click==8.2.1
+cryptography==45.0.4
+deap==1.4.3
+dnspython==2.7.0
+ecdsa==0.19.1
+fastjsonschema==2.21.1
+greenlet==3.2.3
+h11==0.16.0
+httptools==0.6.4
+idna==3.10
+jsonschema==4.24.0
+jsonschema-specifications==2025.4.1
+jupyter-core==5.8.1
+Mako==1.3.10
+MarkupSafe==3.0.2
+narwhals==1.44.0
+nbformat==5.10.4
+packaging==25.0
+platformdirs==4.3.8
+pyasn1==0.6.1
+pycparser==2.22
+PyYAML==6.0.2
+referencing==0.36.2
+rpds-py==0.25.1
+rsa==4.9.1
+six==1.17.0
+sniffio==1.3.1
+starlette==0.27.0
+traitlets==5.14.3
+typing-inspection==0.4.1
+uvloop==0.21.0
+watchfiles==1.1.0

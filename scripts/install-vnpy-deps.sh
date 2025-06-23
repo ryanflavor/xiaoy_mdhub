@@ -43,7 +43,26 @@ sudo apt-get install -y \
     curl \
     libtool \
     autoconf \
-    automake
+    automake \
+    wget
+
+# 安装 TA-Lib 库（技术分析库）
+echo "📦 安装 TA-Lib 库..."
+echo "正在下载和编译 TA-Lib，可能需要几分钟..."
+
+pushd /tmp > /dev/null
+if [ ! -f "ta-lib-0.6.4-src.tar.gz" ]; then
+    wget https://pip.vnpy.com/colletion/ta-lib-0.6.4-src.tar.gz
+fi
+tar -xf ta-lib-0.6.4-src.tar.gz
+cd ta-lib-0.6.4
+./configure --prefix=/usr/local
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+popd > /dev/null
+
+echo "✅ TA-Lib 库安装完成"
 
 # 验证安装
 echo "✅ 验证安装..."
