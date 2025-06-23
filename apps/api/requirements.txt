@@ -21,7 +21,7 @@ websockets==12.0
 
 # Data processing and utilities
 pandas>=2.0.0
-numpy>=1.24.0
+numpy>=1.24.0,<3.0.0  # 确保与 Python 3.12 兼容
 pydantic==2.5.0
 python-multipart==0.0.6
 
@@ -43,5 +43,5 @@ passlib[bcrypt]==1.7.4
 structlog==23.2.0
 prometheus-client==0.19.0
 
-# Email notifications
-smtplib2==0.2.1
+# Email notifications (使用标准库，无需额外依赖)
+# smtplib 是 Python 标准库的一部分

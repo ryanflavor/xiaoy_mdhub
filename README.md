@@ -102,7 +102,7 @@ This project follows a **Modular Monolith** architecture with:
    npm run web:dev
    ```
 
-5. **Access the application**
+7. **Access the application**
    - **Web Dashboard**: http://localhost:3000
    - **API Documentation**: http://localhost:8000/docs
    - **API Health**: http://localhost:8000/health
