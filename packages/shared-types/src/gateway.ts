@@ -27,6 +27,23 @@ export interface GatewayControl {
   gatewayId: string;
 }
 
+// Enhanced control types for interactive dashboard
+export type GatewayControlAction = 'start' | 'stop' | 'restart';
+export type ButtonState = 'idle' | 'loading' | 'success' | 'error';
+
+export interface GatewayControlRequest {
+  gateway_id: string;
+  action: GatewayControlAction;
+}
+
+export interface GatewayControlResponse {
+  success: boolean;
+  message: string;
+  gateway_id: string;
+  action: GatewayControlAction;
+  timestamp: string;
+}
+
 export interface GatewayHealthCheck {
   gatewayId: string;
   isHealthy: boolean;

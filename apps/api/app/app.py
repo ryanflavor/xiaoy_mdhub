@@ -4,17 +4,27 @@ FastAPI application factory and configuration.
 
 import logging
 import os
-from datetime import datetime
-from typing import Dict, Any
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from typing import Dict, Any, AsyncGenerator
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
 import structlog
 
 from app.api.routes import health
+from app.api.routes import websocket
+from app.routes import accounts
+from app.services.gateway_manager import gateway_manager
+from app.services.health_monitor import health_monitor
+from app.services.quote_aggregation_engine import quote_aggregation_engine
+from app.services.gateway_recovery_service import gateway_recovery_service
+from app.services.websocket_manager import WebSocketManager
+from app.config.database import db_manager
 
 # Load environment variables
 load_dotenv()
@@ -45,6 +55,120 @@ def configure_logging() -> None:
         format="%(message)s",
         level=getattr(logging, log_level),
     )
+    
+    # Set up WebSocket log broadcasting
+    from app.services.websocket_log_handler import setup_websocket_logging
+    setup_websocket_logging()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manage the lifespan of the FastAPI application."""
+    logger = structlog.get_logger()
+    environment = os.getenv("ENVIRONMENT", "development")
+    
+    # Startup
+    logger.info(
+        "Market Data Hub API starting up",
+        version="1.0.0",
+        environment=environment
+    )
+    
+    # Initialize Database
+    try:
+        db_initialized = await db_manager.initialize()
+        if db_initialized:
+            logger.info("Database connection established successfully")
+        else:
+            logger.info("Database disabled or connection failed, using fallback mode")
+    except Exception as e:
+        logger.error("Database initialization error", error=str(e))
+    
+    # Initialize Gateway Manager with database accounts
+    try:
+        gateway_initialized = await gateway_manager.initialize()
+        if gateway_initialized:
+            logger.info("Gateway Manager initialized with database accounts")
+        else:
+            logger.info("Gateway Manager initialization completed with no active accounts")
+    except Exception as e:
+        logger.error("Gateway Manager initialization error", error=str(e))
+    
+    # Initialize Health Monitor
+    try:
+        health_monitor_initialized = await health_monitor.start()
+        if health_monitor_initialized:
+            logger.info("Health Monitor started successfully")
+        else:
+            logger.warning("Health Monitor failed to start")
+    except Exception as e:
+        logger.error("Health Monitor initialization error", error=str(e))
+    
+    # Initialize Quote Aggregation Engine
+    try:
+        await quote_aggregation_engine.start()
+        logger.info("Quote Aggregation Engine started successfully")
+    except Exception as e:
+        logger.error("Quote Aggregation Engine initialization error", error=str(e))
+    
+    # Initialize Gateway Recovery Service
+    try:
+        recovery_initialized = await gateway_recovery_service.start()
+        if recovery_initialized:
+            logger.info("Gateway Recovery Service started successfully")
+        else:
+            logger.info("Gateway Recovery Service disabled or failed to start")
+    except Exception as e:
+        logger.error("Gateway Recovery Service initialization error", error=str(e))
+    
+    # Initialize WebSocket Manager (singleton, no explicit start needed)
+    try:
+        ws_manager = WebSocketManager.get_instance()
+        logger.info("WebSocket Manager initialized successfully")
+    except Exception as e:
+        logger.error("WebSocket Manager initialization error", error=str(e))
+    
+    yield
+    
+    # Shutdown
+    logger.info("Market Data Hub API shutting down")
+    
+    # Shutdown Gateway Recovery Service
+    try:
+        await gateway_recovery_service.stop()
+    except Exception as e:
+        logger.error("Gateway Recovery Service shutdown error", error=str(e))
+    
+    # Shutdown Quote Aggregation Engine
+    try:
+        await quote_aggregation_engine.stop()
+    except Exception as e:
+        logger.error("Quote Aggregation Engine shutdown error", error=str(e))
+    
+    # Shutdown Health Monitor
+    try:
+        await health_monitor.stop()
+    except Exception as e:
+        logger.error("Health Monitor shutdown error", error=str(e))
+    
+    # Shutdown Gateway Manager
+    try:
+        await gateway_manager.shutdown()
+    except Exception as e:
+        logger.error("Gateway Manager shutdown error", error=str(e))
+    
+    # Shutdown WebSocket Manager
+    try:
+        ws_manager = WebSocketManager.get_instance()
+        await ws_manager.shutdown()
+    except Exception as e:
+        logger.error("WebSocket Manager shutdown error", error=str(e))
+    
+    # Shutdown Database
+    try:
+        await db_manager.shutdown()
+    except Exception as e:
+        logger.error("Database shutdown error", error=str(e))
+
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
@@ -53,12 +177,36 @@ def create_app() -> FastAPI:
     environment = os.getenv("ENVIRONMENT", "development")
     
     app = FastAPI(
-        title="Market Data Hub API",
-        description="High-Availability Market Data Distribution Service",
+        title="Market Data Hub Management API",
+        description="""
+        High-Availability Market Data Distribution Service
+        
+        This API provides comprehensive management capabilities for market data accounts,
+        supporting multiple gateway types (CTP, SOPT) with automatic failover and
+        health monitoring features.
+        
+        ## Key Features
+        - **Account Management**: Full CRUD operations for market data accounts
+        - **Multi-Gateway Support**: CTP and SOPT gateway configurations
+        - **Priority Management**: Account priority and failover handling
+        - **Real-time Status**: Live account status and health monitoring
+        
+        ## Gateway Types
+        - **CTP**: China Trading Platform integration
+        - **SOPT**: Shanghai Options Trading integration
+        """,
         version="1.0.0",
+        lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
-        debug=environment == "development"
+        debug=environment == "development",
+        contact={
+            "name": "Market Data Hub API",
+            "url": "https://github.com/your-org/mdhub",
+        },
+        license_info={
+            "name": "MIT",
+        },
     )
     
     # Configure CORS for frontend integration
@@ -81,11 +229,11 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
         logger = structlog.get_logger()
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         response = await call_next(request)
         
-        process_time = (datetime.utcnow() - start_time).total_seconds()
+        process_time = (datetime.now(timezone.utc) - start_time).total_seconds()
         
         logger.info(
             "Request processed",
@@ -96,6 +244,26 @@ def create_app() -> FastAPI:
         )
         
         return response
+    
+    # Database-specific exception handler
+    @app.exception_handler(SQLAlchemyError)
+    async def database_exception_handler(request: Request, exc: SQLAlchemyError):
+        logger = structlog.get_logger()
+        logger.error(
+            "Database error",
+            exception=str(exc),
+            path=request.url.path,
+            method=request.method
+        )
+        
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "Database error",
+                "message": "Database service is temporarily unavailable",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        )
     
     # Global exception handler
     @app.exception_handler(Exception)
@@ -113,27 +281,13 @@ def create_app() -> FastAPI:
             content={
                 "error": "Internal server error",
                 "message": "An unexpected error occurred",
-                "timestamp": datetime.utcnow().isoformat() + "Z"
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         )
     
     # Include routers
     app.include_router(health.router, tags=["health"])
-    
-    # Startup event
-    @app.on_event("startup")
-    async def startup_event():
-        logger = structlog.get_logger()
-        logger.info(
-            "Market Data Hub API starting up",
-            version="1.0.0",
-            environment=environment
-        )
-    
-    # Shutdown event
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        logger = structlog.get_logger()
-        logger.info("Market Data Hub API shutting down")
+    app.include_router(accounts.router, tags=["accounts"])
+    app.include_router(websocket.router, tags=["websocket"])
     
     return app

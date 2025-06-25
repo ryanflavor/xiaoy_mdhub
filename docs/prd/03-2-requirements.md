@@ -21,7 +21,7 @@
 - **NFR2**: The system's scheduled start and stop must be managed by a host-level `cron` job that controls the Docker container.
 - **NFR3**: The backend service must be developed in **Python 3.12**.
 - **NFR4**: The web dashboard frontend must be developed using Next.js and TypeScript.
-- **NFR5**: The project must use the following pinned dependency versions: `vnpy` (v4.1.0), `vnpy_ctp` (v6.7.7.2), and `vnpy_sopt` (v3.7.1.0).
+- **NFR5**: The project must use the following pinned dependency versions: `vnpy` (v4.0.0), `vnpy_ctp` (v6.7.7.2), and `vnpy_sopt` (v3.7.1.0).
 - **NFR6**: The system must achieve greater than 99.9% service availability.
 - **NFR7**: The median end-to-end tick latency (from gateway ingress to client egress) must be below 5 milliseconds.
 - **NFR8**: The web dashboard must be protected by a simple username and password authentication mechanism.

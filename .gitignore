@@ -316,3 +316,54 @@ backtest_data/
 !.env.example
 secrets/
 config/local/
+
+# Account configuration files (security)
+accounts_config.json
+test_ctp_account.json
+*_credentials.json
+*_config.json
+!accounts_config.example.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+mdhub.db
+apps/api/mdhub.db
+
+# Build and cache directories
+.turbo/
+.next/
+out/
+dist/
+build/
+
+# Temporary and log files
+*.log
+server.log
+apps/api/server.log
+
+# Alembic migration files (keep structure, ignore specific migrations)
+apps/api/alembic/versions/*.py
+!apps/api/alembic/versions/.gitkeep
+
+# Test and coverage outputs
+coverage/
+.coverage
+.pytest_cache/
+__tests__/coverage/
+
+# Development tools
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Package manager files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# VNPy libraries (external git repositories)
+packages/libs/vnpy_ctp/
+packages/libs/vnpy_sopt/

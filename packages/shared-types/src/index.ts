@@ -7,3 +7,6 @@ export * from "./api";
 
 // Common utility types
 export * from "./common";
+
+// WebSocket types
+export * from "./websocket";

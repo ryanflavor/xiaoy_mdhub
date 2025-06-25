@@ -1,0 +1,2 @@
+- allways use conda env 'hub' to excute python: eval "$(conda shell.bash hook)" && conda activate hub
+- allways test your changes before you move the next step in your TODO list

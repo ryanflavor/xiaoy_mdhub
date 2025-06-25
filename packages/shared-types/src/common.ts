@@ -7,7 +7,7 @@ export type Status =
   | "STOPPED"
   | "UNKNOWN";
 
-export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
+export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR" | "CRITICAL";
 
 export type GatewayType = "CTP" | "SOPT";
 

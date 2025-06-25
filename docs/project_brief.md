@@ -52,7 +52,7 @@ The primary user is the company's internal **Quantitative Strategy Developer/Res
   - **Frontend**: TypeScript, Next.js, Shadcn/ui, Zustand (for state management)
   - **Communication Architecture**: REST API (for control commands) + WebSockets (for real-time status updates)
   - **Database**: Support for both MySQL and MongoDB
-  - **Core Dependency Versions**: `vnpy` (v4.1.0), `vnpy_ctp` (v6.7.7.2), `vnpy_sopt` (v3.7.1.0)
+  - **Core Dependency Versions**: `vnpy` (v4.0.0), `vnpy_ctp` (v6.7.7.2), `vnpy_sopt` (v3.7.1.0)
 - **Operational Requirements**:
   - **Scheduled Start/Stop**: The system must be managed by a host-level `cron` job to automatically start before market open and shut down after market close on trading days.
 
