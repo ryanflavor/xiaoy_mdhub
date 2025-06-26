@@ -30,7 +30,28 @@ from app.config.database import db_manager
 load_dotenv()
 
 def configure_logging() -> None:
-    """Configure structured logging using structlog."""
+    """Configure optimized logging to reduce startup noise."""
+    import logging.config
+    from logging_config import setup_optimized_logging, VNPyLogFilter
+    from system_monitor_optimizer import optimize_startup_logging
+    
+    # 首先应用系统监控优化
+    optimize_startup_logging()
+    
+    # 设置优化的日志配置
+    config = setup_optimized_logging()
+    
+    # 创建logs目录
+    os.makedirs("logs", exist_ok=True)
+    
+    # 应用日志配置
+    logging.config.dictConfig(config)
+    
+    # 为VNPy相关的根日志记录器添加过滤器
+    vnpy_filter = VNPyLogFilter()
+    logging.getLogger().addFilter(vnpy_filter)
+    
+    # 配置structlog
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     
     structlog.configure(

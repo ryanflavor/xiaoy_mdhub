@@ -52,7 +52,7 @@ class WebSocketManager:
         
         # Log buffer for system logs
         self._log_buffer = deque(maxlen=500)
-        self._log_levels = ["INFO", "WARN", "ERROR", "CRITICAL"]
+        self._log_levels = ["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"]
         
         # Subscribe to event bus
         self._setup_event_subscriptions()
@@ -406,3 +406,12 @@ class WebSocketManager:
             
         except Exception as e:
             logger.error(f"Error broadcasting gateway control action {action}: {str(e)}")
+    
+    def get_log_buffer(self) -> List[Dict[str, Any]]:
+        """
+        Get the current log buffer contents.
+        
+        Returns:
+            List of log entries from the buffer
+        """
+        return list(self._log_buffer)

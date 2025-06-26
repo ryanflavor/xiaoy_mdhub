@@ -276,24 +276,39 @@ class GatewayManager:
                         gateway_type=gateway_type
                     )
                     return False
-            elif gateway_type_lower == 'sopt' and not SOPT_AVAILABLE:
-                # Mock mode for SOPT
-                mock_mode = os.getenv("ENABLE_SOPT_MOCK", "true").lower() == "true"
-                if mock_mode:
-                    return await self._initialize_mock_gateway(account)
-                else:
-                    self.logger.warning(
-                        "SOPT Gateway not available - missing native dependencies",
-                        account_id=account_id,
-                        gateway_type=gateway_type
+            elif gateway_type_lower == 'sopt':
+                # Check SOPT mock mode first
+                sopt_mock_mode = os.getenv("ENABLE_SOPT_MOCK", "false").lower() == "true"
+                if sopt_mock_mode:
+                    self.logger.info(
+                        "SOPT Mock mode enabled via environment variable",
+                        account_id=account_id
                     )
-                    return False
+                    return await self._initialize_mock_gateway(account)
+                elif not SOPT_AVAILABLE:
+                    # Fallback to mock if SOPT not available
+                    sopt_fallback = os.getenv("SOPT_FALLBACK_TO_MOCK", "true").lower() == "true"
+                    if sopt_fallback:
+                        self.logger.warning(
+                            "SOPT Gateway not available - falling back to mock mode",
+                            account_id=account_id,
+                            gateway_type=gateway_type
+                        )
+                        return await self._initialize_mock_gateway(account)
+                    else:
+                        self.logger.warning(
+                            "SOPT Gateway not available - missing native dependencies",
+                            account_id=account_id,
+                            gateway_type=gateway_type
+                        )
+                        return False
+                else:
+                    # Try real SOPT gateway with fallback on CFlow errors
+                    return await self._initialize_sopt_gateway(account)
             
             # Real gateway initialization
             if gateway_type_lower == 'ctp':
                 return await self._initialize_ctp_gateway(account)
-            elif gateway_type_lower == 'sopt':
-                return await self._initialize_sopt_gateway(account)
             else:
                 self.logger.error(
                     "Unsupported gateway type",
@@ -322,19 +337,28 @@ class GatewayManager:
         """Handle connection status changes with logging and monitoring."""
         previous_status = self.gateway_connections.get(account_id, False)
         
-        if status == "连接成功" or status == "connected":
-            self.gateway_connections[account_id] = True
-            duration = self._get_connection_duration(account_id)
-            
-            self.logger.info(
-                "Gateway connected successfully",
-                account_id=account_id,
-                connection_duration=f"{duration:.2f}s",
-                timestamp=datetime.now(timezone.utc).isoformat()
-            )
-            
-            # Subscribe to contracts for this account
-            self._subscribe_contracts(account_id)
+        # Check for various success messages from different gateways
+        success_messages = [
+            "连接成功", "connected",
+            "交易服务器登录成功", "行情服务器登录成功",
+            "结算信息确认成功", "合约信息查询成功"
+        ]
+        
+        if any(msg in status for msg in success_messages):
+            if not self.gateway_connections.get(account_id, False):  # Only log on first success
+                self.gateway_connections[account_id] = True
+                duration = self._get_connection_duration(account_id)
+                
+                self.logger.info(
+                    "Gateway connected successfully",
+                    account_id=account_id,
+                    connection_duration=f"{duration:.2f}s",
+                    status_message=status,
+                    timestamp=datetime.now(timezone.utc).isoformat()
+                )
+                
+                # Subscribe to contracts for this account
+                self._subscribe_contracts(account_id)
             
         elif status == "连接断开" or status == "disconnected":
             self.gateway_connections[account_id] = False
@@ -365,11 +389,26 @@ class GatewayManager:
             return
             
         try:
-            # Default test contracts - in production this could be configured per account
-            test_contracts = [
-                "rb2501.SHFE",  # Steel rebar futures May 2025
-                "au2502.SHFE",  # Gold futures February 2025
-            ]
+            # Get canary contracts based on gateway type for consistent monitoring
+            account = next((acc for acc in self.active_accounts if acc['id'] == account_id), None)
+            test_contracts = []
+            if account:
+                gateway_type = account['gateway_type'].lower()
+                if gateway_type == 'ctp':
+                    # CTP canary contracts (futures)
+                    canary_symbols = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
+                    test_contracts = [f"{symbol.strip()}.SHFE" for symbol in canary_symbols]
+                elif gateway_type == 'sopt':
+                    # SOPT canary contracts (options and ETFs)
+                    canary_symbols = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
+                    test_contracts = [f"{symbol.strip()}.SHFE" for symbol in canary_symbols]
+            
+            # Fallback to default contracts if no account found
+            if not test_contracts:
+                test_contracts = [
+                    "rb2601.SHFE",  # Steel rebar futures June 2025 (canary)
+                    "rb2505.SHFE",  # Steel rebar futures May 2025 (canary)
+                ]
             
             for contract in test_contracts:
                 # Note: Actual subscription method depends on vnpy version
@@ -486,8 +525,11 @@ class GatewayManager:
                 current_memory = self.process.memory_info().rss / 1024 / 1024  # MB
                 memory_growth = current_memory - self.startup_memory
                 
-                # Connection duration
-                connection_duration = self._get_connection_duration()
+                # Average connection duration for connected gateways
+                connection_durations = [self._get_connection_duration(account_id) 
+                                      for account_id in self.gateway_connections 
+                                      if self.gateway_connections.get(account_id, False)]
+                avg_connection_duration = sum(connection_durations) / len(connection_durations) if connection_durations else 0.0
                 
                 self.logger.info(
                     "Performance metrics",
@@ -495,8 +537,8 @@ class GatewayManager:
                     total_ticks=self.tick_count,
                     memory_usage_mb=current_memory,
                     memory_growth_mb=memory_growth,
-                    connection_duration_seconds=connection_duration,
-                    gateway_connected=self.is_connected
+                    avg_connection_duration_seconds=avg_connection_duration,
+                    connected_gateways=sum(1 for connected in self.gateway_connections.values() if connected)
                 )
                 
                 self.last_performance_log = current_time
@@ -549,13 +591,29 @@ class GatewayManager:
         
         # Filter and forward relevant logs
         if hasattr(log_data, 'msg') and hasattr(log_data, 'level'):
+            message = log_data.msg
+            
             self.logger.info(
                 "VNPy log",
                 account_id=account_id,
-                message=log_data.msg,
+                message=message,
                 level=log_data.level,
                 gateway=getattr(log_data, 'gateway_name', 'unknown')
             )
+            
+            # Detect connection success from vnpy log messages
+            # This handles the case where gateway events don't fire properly
+            success_patterns = [
+                "交易服务器登录成功",   # Trading server login successful
+                "行情服务器登录成功",   # Market data server login successful  
+                "结算信息确认成功",     # Settlement confirmation successful
+                "合约信息查询成功"      # Contract query successful
+            ]
+            
+            for pattern in success_patterns:
+                if pattern in message:
+                    self._handle_connection_status_change(pattern, account_id)
+                    break
     
     async def shutdown(self):
         """Gracefully shutdown the gateway manager and ZMQ publisher."""
@@ -607,8 +665,9 @@ class GatewayManager:
             main_engine = MainEngine(event_engine)
             self.main_engines[account_id] = main_engine
             
-            # Add CTP gateway
-            main_engine.add_gateway(CtpGateway)
+            # Add CTP gateway with account-specific name
+            gateway_name = f"CTP_{account_id}"
+            main_engine.add_gateway(CtpGateway, gateway_name)
             
             # Register event handlers for this account
             self._register_event_handlers(event_engine, account_id)
@@ -646,12 +705,18 @@ class GatewayManager:
             # Use account-specific gateway name
             gateway_name = f"CTP_{account_id}"
             
-            main_engine.connect(settings, gateway_name)
+            # Extract connect_setting from account settings
+            connect_setting = settings.get('connect_setting', {})
+            if not connect_setting:
+                self.logger.error("No connect_setting found in CTP account settings", account_id=account_id)
+                return
+            
+            main_engine.connect(connect_setting, gateway_name)
             self.logger.info(
                 "CTP Gateway connection initiated",
                 account_id=account_id,
                 gateway_name=gateway_name,
-                settings_keys=list(settings.keys())
+                settings_keys=list(connect_setting.keys())
             )
         except Exception as e:
             self.logger.error(
@@ -661,7 +726,7 @@ class GatewayManager:
             )
     
     async def _initialize_sopt_gateway(self, account: Dict[str, Any]) -> bool:
-        """Initialize SOPT gateway for an account."""
+        """Initialize SOPT gateway for an account with CFlow error handling."""
         account_id = account['id']
         settings = account['settings']
         
@@ -681,8 +746,29 @@ class GatewayManager:
             main_engine = MainEngine(event_engine)
             self.main_engines[account_id] = main_engine
             
-            # Add SOPT gateway
-            main_engine.add_gateway(SoptGateway)
+            # Add SOPT gateway with account-specific name and CFlow error handling
+            gateway_name = f"SOPT_{account_id}"
+            
+            try:
+                main_engine.add_gateway(SoptGateway, gateway_name)
+                self.logger.info(
+                    "SOPT gateway registered successfully",
+                    account_id=account_id,
+                    gateway_name=gateway_name
+                )
+            except RuntimeError as gateway_error:
+                error_msg = str(gateway_error)
+                if "CFlow file" in error_msg or "ThostFtdcUserApiImplBase.cpp" in error_msg:
+                    self.logger.warning(
+                        "SOPT CFlow file error detected - falling back to mock mode",
+                        account_id=account_id,
+                        error=error_msg
+                    )
+                    # Fallback to mock gateway
+                    return await self._initialize_mock_gateway(account)
+                else:
+                    # Re-raise if it's not a CFlow error
+                    raise gateway_error
             
             # Register event handlers for this account
             self._register_event_handlers(event_engine, account_id)
@@ -691,17 +777,44 @@ class GatewayManager:
             self.connection_attempts[account_id] = 0
             self.gateway_connections[account_id] = False
             
-            # Start connection
-            self._connect_sopt_gateway(account)
+            # Start connection with error handling
+            try:
+                self._connect_sopt_gateway(account)
+            except Exception as connect_error:
+                connect_error_msg = str(connect_error)
+                if "CFlow file" in connect_error_msg or "ThostFtdcUserApiImplBase.cpp" in connect_error_msg:
+                    self.logger.warning(
+                        "SOPT connection CFlow error - falling back to mock mode",
+                        account_id=account_id,
+                        error=connect_error_msg
+                    )
+                    # Clean up and fallback to mock
+                    if account_id in self.main_engines:
+                        del self.main_engines[account_id]
+                    if account_id in self.event_engines:
+                        del self.event_engines[account_id]
+                    return await self._initialize_mock_gateway(account)
+                else:
+                    raise connect_error
             
             return True
             
         except Exception as e:
+            error_msg = str(e)
             self.logger.error(
                 "SOPT gateway initialization failed",
                 account_id=account_id,
-                error=str(e)
+                error=error_msg
             )
+            
+            # Check for CFlow errors and fallback to mock
+            if "CFlow file" in error_msg or "ThostFtdcUserApiImplBase.cpp" in error_msg:
+                self.logger.info(
+                    "SOPT CFlow error during initialization - attempting mock fallback",
+                    account_id=account_id
+                )
+                return await self._initialize_mock_gateway(account)
+            
             return False
     
     def _connect_sopt_gateway(self, account: Dict[str, Any]):
@@ -739,23 +852,15 @@ class GatewayManager:
     
     def _convert_to_sopt_settings(self, settings: Dict[str, Any]) -> Dict[str, str]:
         """Convert database settings to SOPT gateway format."""
-        # Map our database fields to SOPT expected fields
-        sopt_mapping = {
-            'username': '用户名',
-            'password': '密码',
-            'brokerID': '经纪商代码',
-            'tdAddress': '交易服务器',
-            'mdAddress': '行情服务器',
-            'appID': '产品名称',
-            'authCode': '授权编码'
-        }
+        # Extract connect_setting from account settings
+        connect_setting = settings.get('connect_setting', {})
+        if not connect_setting:
+            self.logger.error("No connect_setting found in SOPT account settings")
+            return {}
         
-        sopt_settings = {}
-        for db_key, sopt_key in sopt_mapping.items():
-            if db_key in settings:
-                sopt_settings[sopt_key] = str(settings[db_key])
-        
-        return sopt_settings
+        # Return the connect_setting directly as it's already in the correct format
+        # The database already stores SOPT settings with Chinese field names
+        return connect_setting
     
     async def _initialize_mock_gateway(self, account: Dict[str, Any]) -> bool:
         """Initialize mock gateway for development/testing."""
@@ -955,8 +1060,8 @@ class GatewayManager:
         # For now, return default contracts if gateway is connected
         if self._is_gateway_available(gateway_id):
             return [
-                "rb2501.SHFE",  # Steel rebar futures May 2025
-                "au2502.SHFE",  # Gold futures February 2025
+                "rb2601.SHFE",  # Steel rebar futures June 2025 (canary)
+                "rb2505.SHFE",  # Steel rebar futures May 2025 (canary)
             ]
         return []
     
@@ -1001,9 +1106,9 @@ class GatewayManager:
             if account:
                 gateway_type = account['gateway_type']
                 if gateway_type == 'ctp':
-                    canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2501,rb2505").split(",")
+                    canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
                 elif gateway_type == 'sopt':
-                    canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "rb2501,rb2505").split(",")
+                    canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
             
             # Extract base symbol (remove exchange suffix if present)
             base_symbol = symbol.split('.')[0] if '.' in symbol else symbol

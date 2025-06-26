@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LogEntry, LogFilter, LogViewerConfig, LogViewerState, LogLevel } from '@xiaoy-mdhub/shared-types';
 import { SystemLogMessage, WebSocketEventType, WebSocketState, isSystemLog } from '@xiaoy-mdhub/shared-types';
 import { createWebSocketClient, WebSocketClient } from '@/services/websocket';
+import { apiClient } from '@/services/api-client';
 
 const DEFAULT_CONFIG: LogViewerConfig = {
   maxBufferSize: 1000,
@@ -113,6 +114,27 @@ export function useLogViewer(config: Partial<LogViewerConfig> = {}) {
     };
   }, []);
 
+  // Load historical logs from API
+  const loadHistoricalLogs = useCallback(async () => {
+    try {
+      const response = await apiClient.get<{ logs: any[]; total: number }>('/logs');
+      const historicalLogs = response.data.logs.map(convertToLogEntry);
+      
+      setState(prev => {
+        const filteredLogs = filterLogs(historicalLogs, prev.filter);
+        return {
+          ...prev,
+          logs: historicalLogs,
+          filteredLogs,
+          bufferSize: historicalLogs.length,
+          totalLogCount: prev.totalLogCount + historicalLogs.length,
+        };
+      });
+    } catch (error) {
+      console.error('Failed to load historical logs:', error);
+    }
+  }, [convertToLogEntry, filterLogs]);
+
   // Add new log entry with buffer management
   const addLogEntry = useCallback((entry: LogEntry) => {
     if (state.isPaused) {
@@ -155,8 +177,11 @@ export function useLogViewer(config: Partial<LogViewerConfig> = {}) {
     }));
   }, []);
 
-  // Initialize WebSocket connection
+  // Initialize WebSocket connection and load historical logs
   useEffect(() => {
+    // Load historical logs first
+    loadHistoricalLogs();
+    
     if (!wsClient.current) {
       wsClient.current = createWebSocketClient();
       
@@ -178,7 +203,7 @@ export function useLogViewer(config: Partial<LogViewerConfig> = {}) {
         }
       };
     }
-  }, [handleWebSocketMessage, handleWebSocketStateChange]);
+  }, [handleWebSocketMessage, handleWebSocketStateChange, loadHistoricalLogs]);
 
   // Update filters and apply them
   const updateFilter = useCallback((newFilter: LogFilter) => {

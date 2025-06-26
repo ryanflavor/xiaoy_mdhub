@@ -72,8 +72,8 @@ class WebSocketLogHandler(logging.Handler):
             # Format the log message
             log_level = self._level_map.get(record.levelno, "INFO")
             
-            # Only broadcast INFO, WARN, ERROR, CRITICAL levels (skip DEBUG for performance)
-            if log_level not in ["INFO", "WARN", "ERROR", "CRITICAL"]:
+            # Broadcast all levels including DEBUG for VNPy troubleshooting
+            if log_level not in ["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"]:
                 return
             
             # Extract source from logger name

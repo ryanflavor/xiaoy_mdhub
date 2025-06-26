@@ -84,13 +84,25 @@ export function useDashboardData(): UseDashboardDataReturn {
         (g: GatewayStatus) => g.gateway_id === message.gateway_id
       );
 
+      // Map connection status to our status format
+      let mappedStatus: 'HEALTHY' | 'UNHEALTHY' | 'RECOVERING' | 'DISCONNECTED';
+      if (message.current_status === 'connected' || message.current_status === '连接成功') {
+        mappedStatus = 'HEALTHY';
+      } else if (message.current_status === 'connecting') {
+        mappedStatus = 'RECOVERING';
+      } else if (message.current_status === 'disconnected' || message.current_status === '连接断开') {
+        mappedStatus = 'DISCONNECTED';
+      } else {
+        mappedStatus = message.current_status as 'HEALTHY' | 'UNHEALTHY' | 'RECOVERING' | 'DISCONNECTED';
+      }
+
       const updatedGateway: GatewayStatus = {
         gateway_id: message.gateway_id,
-        gateway_type: message.gateway_type,
-        current_status: message.current_status as 'HEALTHY' | 'UNHEALTHY' | 'RECOVERING' | 'DISCONNECTED',
+        gateway_type: message.gateway_type.toLowerCase() as 'ctp' | 'sopt',
+        current_status: mappedStatus,
         priority: 1, // Default priority, can be enhanced
         last_update: message.timestamp,
-        connection_status: message.metadata?.connection_status || 'DISCONNECTED',
+        connection_status: mappedStatus === 'HEALTHY' ? 'CONNECTED' : 'DISCONNECTED',
         last_tick_time: message.metadata?.last_tick_time,
         canary_status: message.metadata?.canary_status,
       };
@@ -208,10 +220,60 @@ export function useDashboardData(): UseDashboardDataReturn {
     }));
 
     if (state === WebSocketState.ERROR) {
-      setError('WebSocket connection error');
+      setError('WebSocket 连接错误');
     } else if (state === WebSocketState.CONNECTED) {
       setError(null);
+    } else if (state === WebSocketState.RECONNECTING) {
+      setError('正在重新连接...');
+    } else if (state === WebSocketState.DISCONNECTED) {
+      setError('WebSocket 连接已断开');
     }
+  }, []);
+
+  // Transform health response to dashboard data format
+  const transformHealthResponse = useCallback((healthData: any): Partial<DashboardData> => {
+    const gateways = healthData.gateway_manager?.accounts || [];
+    const healthy = gateways.filter((g: any) => g.connected === true).length;
+    const connecting = 0; // No connecting status in current API
+    const disconnected = gateways.filter((g: any) => g.connected === false).length;
+    
+    // Transform gateways to frontend format
+    const transformedGateways: GatewayStatus[] = gateways.map((gateway: any) => ({
+      gateway_id: gateway.id, // API uses 'id' field, not 'gateway_id'
+      current_status: gateway.connected ? 'HEALTHY' : 'DISCONNECTED', // API uses 'connected' boolean
+      gateway_type: gateway.gateway_type?.toLowerCase() || 'ctp',
+      connection_duration: gateway.connection_duration,
+      last_update: new Date().toISOString(), // No last_tick_time in API response
+      connection_status: gateway.connected ? 'CONNECTED' : 'DISCONNECTED',
+      priority: gateway.priority || 1,
+      last_tick_time: null, // Not available in health API
+      canary_status: null // Not available in health API
+    }));
+
+    // Transform canary contracts - use new canary_monitor_data if available
+    const canaryContracts: CanaryMonitorData[] = healthData.health_monitor?.canary_monitor_data || 
+      healthData.health_monitor?.canary_contracts?.map((symbol: string) => ({
+        contract_symbol: symbol,
+        status: 'INACTIVE' as const, // Default status for legacy data
+        last_tick_time: healthData.health_monitor.last_health_check || new Date().toISOString(),
+        tick_count_1min: 0, // Will be updated via WebSocket
+        threshold_seconds: 60
+      })) || [];
+
+    return {
+      gateways: transformedGateways,
+      system_health: {
+        total_gateways: gateways.length,
+        healthy_gateways: healthy,
+        unhealthy_gateways: disconnected,
+        recovering_gateways: connecting,
+        system_uptime: '0s', // TODO: Get from API
+        last_updated: new Date().toISOString(),
+        overall_status: healthy === gateways.length ? 'HEALTHY' : 
+                       healthy > 0 ? 'DEGRADED' : 'UNHEALTHY'
+      },
+      canary_contracts: canaryContracts
+    };
   }, []);
 
   // Load initial dashboard data from API
@@ -224,43 +286,20 @@ export function useDashboardData(): UseDashboardDataReturn {
       const healthResponse = await apiClient.get<any>('/health');
       const healthData = healthResponse.data;
       
-      if (healthData.gateway_manager && healthData.health_monitor) {
-        const gatewayManager = healthData.gateway_manager;
-        const healthMonitor = healthData.health_monitor;
-        
-        // Convert API gateway data to frontend format
-        const gateways: GatewayStatus[] = gatewayManager.accounts?.map((account: any) => ({
-          gateway_id: account.id,
-          gateway_type: account.gateway_type?.toUpperCase() || 'UNKNOWN',
-          current_status: account.connected ? 'HEALTHY' : 'DISCONNECTED',
-          priority: account.priority || 1,
-          last_update: new Date().toISOString(),
-          connection_status: account.connected ? 'CONNECTED' : 'DISCONNECTED',
-          last_tick_time: null,
-          canary_status: null,
-        })) || [];
-        
-        // Calculate system health from gateway data
-        const systemHealth = calculateSystemHealth(gateways);
-        
-        setData(prevData => ({
-          ...prevData,
-          gateways,
-          system_health: {
-            ...systemHealth,
-            total_gateways: gatewayManager.total_accounts || 0,
-            system_uptime: '0s', // TODO: Get from API
-            last_updated: new Date().toISOString(),
-          },
-        }));
-      }
+      // Transform API response to dashboard format
+      const transformedData = transformHealthResponse(healthData);
+      
+      setData(prevData => ({
+        ...prevData,
+        ...transformedData
+      }));
     } catch (err) {
       console.error('Failed to load initial dashboard data:', err);
       setError('Failed to load dashboard data');
     } finally {
       setIsLoading(false);
     }
-  }, [calculateSystemHealth]);
+  }, [transformHealthResponse]);
 
   // Refresh data manually
   const refreshData = useCallback(() => {

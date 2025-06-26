@@ -125,3 +125,19 @@ async def health_check() -> HealthResponse:
         gateway_recovery_service=gateway_recovery_status,
         websocket_connections=websocket_status
     )
+
+
+@router.get("/logs")
+async def get_logs():
+    """
+    Get historical logs from WebSocket manager buffer.
+    
+    Returns:
+        List of log entries from the WebSocket manager's log buffer
+    """
+    try:
+        ws_manager = WebSocketManager.get_instance()
+        logs = ws_manager.get_log_buffer()
+        return {"logs": logs, "total": len(logs)}
+    except Exception as e:
+        return {"logs": [], "total": 0, "error": str(e)}

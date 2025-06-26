@@ -38,15 +38,18 @@ class HealthMonitor:
         self.health_check_timeout = 10
         self.canary_heartbeat_timeout = 60
         self.fallback_mode = "connection_only"
-        self.ctp_canary_contracts = ["rb2501", "rb2505"]
-        self.ctp_canary_primary = "rb2501"
-        self.sopt_canary_contracts = ["rb2501", "rb2505"] 
-        self.sopt_canary_primary = "rb2501"
+        self.ctp_canary_contracts = ["rb2601", "rb2505"]
+        self.ctp_canary_primary = "rb2601"
+        self.sopt_canary_contracts = ["rb2601", "rb2505"] 
+        self.sopt_canary_primary = "rb2601"
         
         # Health status tracking
         self.gateway_health: Dict[str, GatewayHealthStatus] = {}
         self.monitoring_tasks: Dict[str, asyncio.Task] = {}
         self.canary_tick_timestamps: Dict[str, datetime] = {}
+        
+        # Canary contract tick counting (key: f"{gateway_id}:{contract}", value: list of timestamps)
+        self.canary_tick_counts: Dict[str, List[datetime]] = {}
         
         # Performance monitoring
         self.process = psutil.Process()
@@ -66,10 +69,10 @@ class HealthMonitor:
         self.fallback_mode = os.getenv("HEALTH_CHECK_FALLBACK_MODE", "connection_only")
         
         # Canary contract configuration
-        self.ctp_canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2501,rb2505").split(",")
-        self.ctp_canary_primary = os.getenv("CTP_CANARY_PRIMARY", "rb2501")
-        self.sopt_canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "rb2501,rb2505").split(",")
-        self.sopt_canary_primary = os.getenv("SOPT_CANARY_PRIMARY", "rb2501")
+        self.ctp_canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
+        self.ctp_canary_primary = os.getenv("CTP_CANARY_PRIMARY", "rb2601")
+        self.sopt_canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
+        self.sopt_canary_primary = os.getenv("SOPT_CANARY_PRIMARY", "rb2601")
         
     async def start(self) -> bool:
         """
@@ -162,7 +165,7 @@ class HealthMonitor:
             
             # Initialize health status
             health_status = GatewayHealthStatus(
-                
+                gateway_id=gateway_id,
                 gateway_type=gateway_type,
                 status=GatewayStatus.CONNECTING,
                 metrics=HealthMetrics(),
@@ -516,7 +519,7 @@ class HealthMonitor:
             event = HealthStatusEvent(
                 event_type="gateway_status_change",
                 timestamp=datetime.now(timezone.utc),
-                
+                gateway_id=gateway_id,
                 gateway_type=health_status.gateway_type,
                 previous_status=previous_status,
                 current_status=current_status,
@@ -541,7 +544,7 @@ class HealthMonitor:
     
     def update_canary_tick(self, gateway_id: str, contract: str, timestamp: datetime):
         """
-        Update canary contract tick timestamp.
+        Update canary contract tick timestamp and count.
         
         Args:
             gateway_id: Gateway identifier
@@ -550,6 +553,20 @@ class HealthMonitor:
         """
         key = f"{gateway_id}:{contract}"
         self.canary_tick_timestamps[key] = timestamp
+        
+        # Initialize tick count list if not exists
+        if key not in self.canary_tick_counts:
+            self.canary_tick_counts[key] = []
+        
+        # Add timestamp to tick count list
+        self.canary_tick_counts[key].append(timestamp)
+        
+        # Clean old timestamps (older than 1 minute)
+        from datetime import timedelta
+        cutoff_time = timestamp - timedelta(minutes=1)
+        self.canary_tick_counts[key] = [
+            ts for ts in self.canary_tick_counts[key] if ts > cutoff_time
+        ]
         
         # Update heartbeat in health metrics
         if gateway_id in self.gateway_health:
@@ -590,6 +607,12 @@ class HealthMonitor:
         Returns:
             Dict[str, Any]: Health summary with gateway statuses and metrics
         """
+        # Get all unique canary contracts
+        all_canary_contracts = list(set(self.ctp_canary_contracts + self.sopt_canary_contracts))
+        
+        # Get canary contract monitoring data
+        canary_monitor_data = self.get_canary_monitor_data()
+        
         return {
             "monitoring_active": self._running,
             "total_gateways": len(self.gateway_health),
@@ -605,6 +628,9 @@ class HealthMonitor:
                 gateway_id: status.to_dict()
                 for gateway_id, status in self.gateway_health.items()
             },
+            "canary_contracts": all_canary_contracts,
+            "canary_monitor_data": canary_monitor_data,
+            "last_health_check": datetime.now(timezone.utc).isoformat(),
             "performance": {
                 "total_health_checks": self.health_check_count,
                 "uptime_seconds": time.time() - self.start_time,
@@ -625,6 +651,55 @@ class HealthMonitor:
         if gateway_id in self.gateway_health:
             return self.gateway_health[gateway_id].to_dict()
         return None
+    
+    def get_canary_monitor_data(self) -> List[Dict[str, Any]]:
+        """
+        Get canary contract monitoring data in dashboard format.
+        
+        Returns:
+            List[Dict[str, Any]]: List of canary contract data for dashboard
+        """
+        canary_data = []
+        current_time = datetime.now(timezone.utc)
+        
+        # Get all unique canary contracts across all gateway types
+        all_canary_contracts = list(set(self.ctp_canary_contracts + self.sopt_canary_contracts))
+        
+        for contract in all_canary_contracts:
+            # Find the latest tick for this contract across all gateways
+            latest_tick_time = None
+            total_tick_count = 0
+            
+            # Check all tick data for this contract (check all possible gateway keys)
+            for key in self.canary_tick_timestamps.keys():
+                if key.endswith(f":{contract}"):
+                    # Get latest tick timestamp
+                    tick_time = self.canary_tick_timestamps[key]
+                    if latest_tick_time is None or tick_time > latest_tick_time:
+                        latest_tick_time = tick_time
+                    
+                    # Get tick count in last minute
+                    if key in self.canary_tick_counts:
+                        total_tick_count += len(self.canary_tick_counts[key])
+            
+            # Determine status based on latest tick time
+            status = "INACTIVE"
+            if latest_tick_time:
+                time_since_tick = (current_time - latest_tick_time).total_seconds()
+                if time_since_tick <= 30:  # Active if tick within 30 seconds
+                    status = "ACTIVE"
+                elif time_since_tick <= self.canary_heartbeat_timeout:  # Stale if within heartbeat timeout
+                    status = "STALE"
+            
+            canary_data.append({
+                "contract_symbol": contract,
+                "last_tick_time": latest_tick_time.isoformat() if latest_tick_time else current_time.isoformat(),
+                "tick_count_1min": total_tick_count,
+                "status": status,
+                "threshold_seconds": self.canary_heartbeat_timeout
+            })
+        
+        return canary_data
 
 
 # Global health monitor instance

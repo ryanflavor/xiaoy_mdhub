@@ -23,10 +23,10 @@ class TestHealthMonitor:
             'HEALTH_CHECK_INTERVAL_SECONDS': '1',
             'HEALTH_CHECK_TIMEOUT_SECONDS': '5',
             'CANARY_HEARTBEAT_TIMEOUT_SECONDS': '10',
-            'CTP_CANARY_CONTRACTS': 'rb2501,rb2505',
-            'CTP_CANARY_PRIMARY': 'rb2501',
-            'SOPT_CANARY_CONTRACTS': 'rb2501,rb2505',
-            'SOPT_CANARY_PRIMARY': 'rb2501',
+            'CTP_CANARY_CONTRACTS': 'rb2601,rb2505',
+            'CTP_CANARY_PRIMARY': 'rb2601',
+            'SOPT_CANARY_CONTRACTS': 'rb2601,rb2505',
+            'SOPT_CANARY_PRIMARY': 'rb2601',
             'HEALTH_CHECK_FALLBACK_MODE': 'connection_only'
         }):
             monitor = HealthMonitor()
@@ -139,7 +139,7 @@ class TestHealthMonitor:
         
         # Add canary tick data
         current_time = datetime.now(timezone.utc)
-        health_monitor.update_canary_tick('test_ctp_account', 'rb2501', current_time)
+        health_monitor.update_canary_tick('test_ctp_account', 'rb2601', current_time)
         
         # Test with recent tick data
         heartbeat_result = await health_monitor._check_canary_heartbeat('test_ctp_account')
@@ -147,7 +147,7 @@ class TestHealthMonitor:
         
         # Test with old tick data
         old_time = current_time - timedelta(seconds=120)  # Older than timeout
-        health_monitor.update_canary_tick('test_ctp_account', 'rb2501', old_time)
+        health_monitor.update_canary_tick('test_ctp_account', 'rb2601', old_time)
         heartbeat_result = await health_monitor._check_canary_heartbeat('test_ctp_account')
         assert heartbeat_result is False
         
@@ -157,11 +157,11 @@ class TestHealthMonitor:
         """Test canary contract configuration."""
         # Test CTP canary contract
         ctp_canary = health_monitor._get_canary_contract('ctp')
-        assert ctp_canary == 'rb2501'
+        assert ctp_canary == 'rb2601'
         
         # Test SOPT canary contract
         sopt_canary = health_monitor._get_canary_contract('sopt')
-        assert sopt_canary == 'rb2501'
+        assert sopt_canary == 'rb2601'
         
         # Test unknown gateway type
         unknown_canary = health_monitor._get_canary_contract('unknown')
@@ -218,10 +218,10 @@ class TestHealthMonitor:
         """Test canary tick timestamp updates."""
         timestamp = datetime.now(timezone.utc)
         
-        health_monitor.update_canary_tick('test_gateway', 'rb2501', timestamp)
+        health_monitor.update_canary_tick('test_gateway', 'rb2601', timestamp)
         
         # Check that tick timestamp was stored
-        key = 'test_gateway:rb2501'
+        key = 'test_gateway:rb2601'
         assert key in health_monitor.canary_tick_timestamps
         assert health_monitor.canary_tick_timestamps[key] == timestamp
     
@@ -291,8 +291,8 @@ class TestHealthMonitor:
         assert health_monitor.health_check_interval == 1
         assert health_monitor.health_check_timeout == 5
         assert health_monitor.canary_heartbeat_timeout == 10
-        assert health_monitor.ctp_canary_primary == 'rb2501'
-        assert health_monitor.sopt_canary_primary == 'rb2501'
+        assert health_monitor.ctp_canary_primary == 'rb2601'
+        assert health_monitor.sopt_canary_primary == 'rb2601'
         assert health_monitor.fallback_mode == 'connection_only'
     
     @pytest.mark.asyncio

@@ -50,7 +50,7 @@ def mock_event_bus():
 def mock_gateway_manager():
     """Mock gateway manager."""
     with patch('app.services.quote_aggregation_engine.gateway_manager') as mock:
-        mock.get_gateway_contracts.return_value = ["rb2501.SHFE", "au2502.SHFE"]
+        mock.get_gateway_contracts.return_value = ["rb2601.SHFE", "rb2602.SHFE"]
         mock.migrate_contracts = AsyncMock(return_value=True)
         yield mock
 
@@ -191,7 +191,7 @@ class TestQuoteAggregationEngine:
         trigger_event = {"health_check_type": "canary_timeout"}
         
         with patch.object(aggregation_engine, '_select_backup_gateway', return_value="ctp_backup"):
-            with patch.object(aggregation_engine, '_get_contracts_for_gateway', return_value=["rb2501.SHFE"]):
+            with patch.object(aggregation_engine, '_get_contracts_for_gateway', return_value=["rb2601.SHFE"]):
                 await aggregation_engine._execute_failover("ctp_main", trigger_event)
         
         # Check that failover event was published
@@ -203,7 +203,7 @@ class TestQuoteAggregationEngine:
         event_data = call_args[0][1]
         assert event_data["failed_gateway_id"] == "ctp_main"
         assert event_data["backup_gateway_id"] == "ctp_backup"
-        assert event_data["affected_contracts"] == ["rb2501.SHFE"]
+        assert event_data["affected_contracts"] == ["rb2601.SHFE"]
         assert "failover_duration_ms" in event_data
         
         # Check performance tracking
@@ -214,7 +214,7 @@ class TestQuoteAggregationEngine:
     @pytest.mark.asyncio
     async def test_contract_migration(self, aggregation_engine, mock_gateway_manager):
         """Test contract migration functionality."""
-        contracts = ["rb2501.SHFE", "au2502.SHFE"]
+        contracts = ["rb2601.SHFE", "rb2602.SHFE"]
         
         await aggregation_engine._migrate_contracts("ctp_main", "ctp_backup", contracts)
         
@@ -223,8 +223,8 @@ class TestQuoteAggregationEngine:
         
         # Check individual contract calls
         calls = mock_gateway_manager.migrate_contracts.call_args_list
-        assert calls[0][0] == ("ctp_main", "ctp_backup", ["rb2501.SHFE"])
-        assert calls[1][0] == ("ctp_main", "ctp_backup", ["au2502.SHFE"])
+        assert calls[0][0] == ("ctp_main", "ctp_backup", ["rb2601.SHFE"])
+        assert calls[1][0] == ("ctp_main", "ctp_backup", ["rb2602.SHFE"])
     
     @pytest.mark.asyncio
     async def test_failover_cooldown_period(self, aggregation_engine, mock_database_service):
@@ -300,14 +300,14 @@ class TestQuoteAggregationEngine:
         old_time = current_time - timedelta(hours=2)
         
         # Add some old and new subscriptions
-        aggregation_engine.contract_subscriptions["old:rb2501"] = ContractSubscription(
-            symbol="rb2501.SHFE",
+        aggregation_engine.contract_subscriptions["old:rb2601"] = ContractSubscription(
+            symbol="rb2601.SHFE",
             gateway_id="old_gateway",
             subscribed_at=old_time,
             is_active=False
         )
-        aggregation_engine.contract_subscriptions["new:rb2501"] = ContractSubscription(
-            symbol="rb2501.SHFE", 
+        aggregation_engine.contract_subscriptions["new:rb2601"] = ContractSubscription(
+            symbol="rb2601.SHFE", 
             gateway_id="new_gateway",
             subscribed_at=current_time,
             is_active=True
@@ -316,16 +316,16 @@ class TestQuoteAggregationEngine:
         await aggregation_engine._cleanup_old_subscriptions()
         
         # Old inactive subscription should be removed
-        assert "old:rb2501" not in aggregation_engine.contract_subscriptions
+        assert "old:rb2601" not in aggregation_engine.contract_subscriptions
         # New active subscription should remain
-        assert "new:rb2501" in aggregation_engine.contract_subscriptions
+        assert "new:rb2601" in aggregation_engine.contract_subscriptions
     
     def test_failover_event_serialization(self):
         """Test FailoverEvent serialization to dictionary."""
         event = FailoverEvent(
             failed_gateway_id="ctp_main",
             backup_gateway_id="ctp_backup", 
-            affected_contracts=["rb2501.SHFE", "au2502.SHFE"],
+            affected_contracts=["rb2601.SHFE", "rb2602.SHFE"],
             failover_duration_ms=150,
             metadata={
                 "primary_priority": 1,
@@ -339,7 +339,7 @@ class TestQuoteAggregationEngine:
         assert event_dict["event_type"] == "failover_executed"
         assert event_dict["failed_gateway_id"] == "ctp_main"
         assert event_dict["backup_gateway_id"] == "ctp_backup"
-        assert event_dict["affected_contracts"] == ["rb2501.SHFE", "au2502.SHFE"]
+        assert event_dict["affected_contracts"] == ["rb2601.SHFE", "rb2602.SHFE"]
         assert event_dict["failover_duration_ms"] == 150
         assert event_dict["metadata"]["contracts_migrated"] == 2
         assert "timestamp" in event_dict

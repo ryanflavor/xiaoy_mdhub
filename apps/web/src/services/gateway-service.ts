@@ -27,7 +27,7 @@ export class GatewayService {
     };
 
     return this.apiClient.post<GatewayControlResponse>(
-      `/api/accounts/${gatewayId}/start`,
+      `/api/accounts/${encodeURIComponent(gatewayId)}/start`,
       request
     );
   }
@@ -42,7 +42,7 @@ export class GatewayService {
     };
 
     return this.apiClient.post<GatewayControlResponse>(
-      `/api/accounts/${gatewayId}/stop`,
+      `/api/accounts/${encodeURIComponent(gatewayId)}/stop`,
       request
     );
   }
@@ -57,7 +57,7 @@ export class GatewayService {
     };
 
     return this.apiClient.post<GatewayControlResponse>(
-      `/api/accounts/${gatewayId}/restart`,
+      `/api/accounts/${encodeURIComponent(gatewayId)}/restart`,
       request
     );
   }

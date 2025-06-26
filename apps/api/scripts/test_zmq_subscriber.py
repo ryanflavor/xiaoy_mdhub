@@ -14,7 +14,7 @@ Examples:
     python scripts/test_zmq_subscriber.py
     
     # Subscribe to specific symbol
-    python scripts/test_zmq_subscriber.py --topic rb2501.SHFE
+    python scripts/test_zmq_subscriber.py --topic rb2601.SHFE
     
     # Receive only 10 messages then exit
     python scripts/test_zmq_subscriber.py --count 10
@@ -304,7 +304,7 @@ def main():
         epilog="""
 Examples:
   %(prog)s                              # Subscribe to all topics
-  %(prog)s --topic rb2501.SHFE          # Subscribe to specific symbol
+  %(prog)s --topic rb2601.SHFE          # Subscribe to specific symbol
   %(prog)s --count 10                   # Receive 10 messages then exit
   %(prog)s --port 5556 --host 192.168.1.100  # Connect to remote host
         """
