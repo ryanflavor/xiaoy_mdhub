@@ -184,7 +184,7 @@ async def test_canary():
         
         # Simulate tick data for canary contracts
         test_results = []
-        canary_contracts = ["rb2501", "au2506"]
+        canary_contracts = ["rb2510", "au2512"]
         
         for contract in canary_contracts:
             health_monitor.update_canary_tick(

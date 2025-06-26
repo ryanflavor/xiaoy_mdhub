@@ -305,29 +305,16 @@ class GatewayManager:
             return 'ctp'
             
         elif gateway_type == 'sopt':
-            sopt_mock_mode = os.getenv("ENABLE_SOPT_MOCK", "false").lower() == "true"
-            if sopt_mock_mode:
-                self.logger.info(
-                    "SOPT Mock mode enabled via environment variable",
-                    account_id=account_id
-                )
-                return 'mock'
-                
             if not SOPT_AVAILABLE:
-                sopt_fallback = os.getenv("SOPT_FALLBACK_TO_MOCK", "true").lower() == "true"
-                if sopt_fallback:
-                    self.logger.warning(
-                        "SOPT Gateway not available - falling back to mock mode",
-                        account_id=account_id
-                    )
+                mock_mode = os.getenv("ENABLE_SOPT_MOCK", "true").lower() == "true"
+                if mock_mode:
                     return 'mock'
                 self.logger.warning(
                     "SOPT Gateway not available - missing native dependencies",
                     account_id=account_id
                 )
                 return 'unavailable'
-            return 'sopt'
-            
+            return 'sopt'  
         return 'unsupported'
     
     def _setup_engines(self, account_id: str, gateway_type: str, gateway_class) -> bool:
