@@ -252,7 +252,6 @@ class GatewayManager:
         """Initialize gateway for a specific account."""
         account_id = account['id']
         gateway_type = account['gateway_type']
-        settings = account['settings']
         
         try:
             self.logger.info(
@@ -262,53 +261,16 @@ class GatewayManager:
                 priority=account['priority']
             )
             
-            # Initialize based on availability and type (case insensitive)
-            gateway_type_lower = gateway_type.lower()
-            if gateway_type_lower == 'ctp' and not CTP_AVAILABLE:
-                # Mock mode for CTP
-                mock_mode = os.getenv("ENABLE_CTP_MOCK", "true").lower() == "true"
-                if mock_mode:
-                    return await self._initialize_mock_gateway(account)
-                else:
-                    self.logger.warning(
-                        "CTP Gateway not available - missing native dependencies",
-                        account_id=account_id,
-                        gateway_type=gateway_type
-                    )
-                    return False
-            elif gateway_type_lower == 'sopt':
-                # Check SOPT mock mode first
-                sopt_mock_mode = os.getenv("ENABLE_SOPT_MOCK", "false").lower() == "true"
-                if sopt_mock_mode:
-                    self.logger.info(
-                        "SOPT Mock mode enabled via environment variable",
-                        account_id=account_id
-                    )
-                    return await self._initialize_mock_gateway(account)
-                elif not SOPT_AVAILABLE:
-                    # Fallback to mock if SOPT not available
-                    sopt_fallback = os.getenv("SOPT_FALLBACK_TO_MOCK", "true").lower() == "true"
-                    if sopt_fallback:
-                        self.logger.warning(
-                            "SOPT Gateway not available - falling back to mock mode",
-                            account_id=account_id,
-                            gateway_type=gateway_type
-                        )
-                        return await self._initialize_mock_gateway(account)
-                    else:
-                        self.logger.warning(
-                            "SOPT Gateway not available - missing native dependencies",
-                            account_id=account_id,
-                            gateway_type=gateway_type
-                        )
-                        return False
-                else:
-                    # Try real SOPT gateway with fallback on CFlow errors
-                    return await self._initialize_sopt_gateway(account)
+            # Determine initialization strategy
+            init_strategy = self._determine_initialization_strategy(account)
             
-            # Real gateway initialization
-            if gateway_type_lower == 'ctp':
+            # Execute initialization based on strategy
+            if init_strategy == 'mock':
+                return await self._initialize_mock_gateway(account)
+            elif init_strategy == 'ctp':
                 return await self._initialize_ctp_gateway(account)
+            elif init_strategy == 'sopt':
+                return await self._initialize_sopt_gateway(account)
             else:
                 self.logger.error(
                     "Unsupported gateway type",
@@ -325,6 +287,169 @@ class GatewayManager:
             )
             return False
     
+    def _determine_initialization_strategy(self, account: Dict[str, Any]) -> str:
+        """Determine which initialization strategy to use for an account."""
+        gateway_type = account['gateway_type'].lower()
+        account_id = account['id']
+        
+        if gateway_type == 'ctp':
+            if not CTP_AVAILABLE:
+                mock_mode = os.getenv("ENABLE_CTP_MOCK", "true").lower() == "true"
+                if mock_mode:
+                    return 'mock'
+                self.logger.warning(
+                    "CTP Gateway not available - missing native dependencies",
+                    account_id=account_id
+                )
+                return 'unavailable'
+            return 'ctp'
+            
+        elif gateway_type == 'sopt':
+            sopt_mock_mode = os.getenv("ENABLE_SOPT_MOCK", "false").lower() == "true"
+            if sopt_mock_mode:
+                self.logger.info(
+                    "SOPT Mock mode enabled via environment variable",
+                    account_id=account_id
+                )
+                return 'mock'
+                
+            if not SOPT_AVAILABLE:
+                sopt_fallback = os.getenv("SOPT_FALLBACK_TO_MOCK", "true").lower() == "true"
+                if sopt_fallback:
+                    self.logger.warning(
+                        "SOPT Gateway not available - falling back to mock mode",
+                        account_id=account_id
+                    )
+                    return 'mock'
+                self.logger.warning(
+                    "SOPT Gateway not available - missing native dependencies",
+                    account_id=account_id
+                )
+                return 'unavailable'
+            return 'sopt'
+            
+        return 'unsupported'
+    
+    def _setup_engines(self, account_id: str, gateway_type: str, gateway_class) -> bool:
+        """Setup event and main engines for an account."""
+        try:
+            # Create event engine
+            event_engine = EventEngine()
+            self.event_engines[account_id] = event_engine
+            
+            # Create main engine
+            main_engine = MainEngine(event_engine)
+            self.main_engines[account_id] = main_engine
+            
+            # Add gateway if provided
+            if gateway_class:
+                gateway_name = f"{gateway_type}_{account_id}"
+                main_engine.add_gateway(gateway_class, gateway_name)
+            
+            # Register event handlers
+            self._register_event_handlers(event_engine, account_id)
+            
+            # Initialize connection tracking
+            self.connection_attempts[account_id] = 0
+            self.gateway_connections[account_id] = False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(
+                "Engine setup failed",
+                account_id=account_id,
+                gateway_type=gateway_type,
+                error=str(e)
+            )
+            return False
+    
+    def _setup_sopt_engines_with_fallback(self, account: Dict[str, Any]) -> bool:
+        """Setup SOPT engines with CFlow error fallback."""
+        account_id = account['id']
+        
+        try:
+            # Create engines
+            event_engine = EventEngine()
+            self.event_engines[account_id] = event_engine
+            
+            main_engine = MainEngine(event_engine)
+            self.main_engines[account_id] = main_engine
+            
+            # Add SOPT gateway with CFlow error handling
+            gateway_name = f"SOPT_{account_id}"
+            
+            try:
+                main_engine.add_gateway(SoptGateway, gateway_name)
+                self.logger.info(
+                    "SOPT gateway registered successfully",
+                    account_id=account_id,
+                    gateway_name=gateway_name
+                )
+            except RuntimeError as gateway_error:
+                if self._is_cflow_error(str(gateway_error)):
+                    self.logger.warning(
+                        "SOPT CFlow file error detected - falling back to mock mode",
+                        account_id=account_id,
+                        error=str(gateway_error)
+                    )
+                    # Clean up and fallback
+                    self._cleanup_engines(account_id)
+                    return False
+                raise gateway_error
+            
+            # Register event handlers and initialize tracking
+            self._register_event_handlers(event_engine, account_id)
+            self.connection_attempts[account_id] = 0
+            self.gateway_connections[account_id] = False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(
+                "SOPT engine setup failed",
+                account_id=account_id,
+                error=str(e)
+            )
+            self._cleanup_engines(account_id)
+            return False
+    
+    def _connect_sopt_with_fallback(self, account: Dict[str, Any]) -> bool:
+        """Connect SOPT gateway with CFlow error fallback."""
+        account_id = account['id']
+        
+        try:
+            self._connect_sopt_gateway(account)
+            return True
+            
+        except Exception as connect_error:
+            if self._is_cflow_error(str(connect_error)):
+                self.logger.warning(
+                    "SOPT connection CFlow error - falling back to mock mode",
+                    account_id=account_id,
+                    error=str(connect_error)
+                )
+                self._cleanup_engines(account_id)
+                return False
+            raise connect_error
+    
+    def _is_cflow_error(self, error_msg: str) -> bool:
+        """Check if error is related to CFlow file issues."""
+        cflow_indicators = [
+            "CFlow file",
+            "ThostFtdcUserApiImplBase.cpp",
+            "CTP API",
+            "thost"
+        ]
+        return any(indicator in error_msg for indicator in cflow_indicators)
+    
+    def _cleanup_engines(self, account_id: str):
+        """Clean up engines for an account."""
+        if account_id in self.main_engines:
+            del self.main_engines[account_id]
+        if account_id in self.event_engines:
+            del self.event_engines[account_id]
+    
     def _on_gateway_event(self, event: Event, account_id: str):
         """Handle gateway connection events for a specific account."""
         gateway_data = event.data
@@ -337,49 +462,70 @@ class GatewayManager:
         """Handle connection status changes with logging and monitoring."""
         previous_status = self.gateway_connections.get(account_id, False)
         
-        # Check for various success messages from different gateways
+        if self._is_connection_success(status):
+            self._handle_connection_success(account_id, status)
+        elif self._is_connection_failure(status):
+            self._handle_connection_failure(account_id)
+            
+        # Log state change
+        self._log_connection_state_change(account_id, previous_status)
+    
+    def _is_connection_success(self, status: str) -> bool:
+        """Check if status indicates connection success."""
         success_messages = [
             "连接成功", "connected",
             "交易服务器登录成功", "行情服务器登录成功",
             "结算信息确认成功", "合约信息查询成功"
         ]
-        
-        if any(msg in status for msg in success_messages):
-            if not self.gateway_connections.get(account_id, False):  # Only log on first success
-                self.gateway_connections[account_id] = True
-                duration = self._get_connection_duration(account_id)
-                
-                self.logger.info(
-                    "Gateway connected successfully",
-                    account_id=account_id,
-                    connection_duration=f"{duration:.2f}s",
-                    status_message=status,
-                    timestamp=datetime.now(timezone.utc).isoformat()
-                )
-                
-                # Subscribe to contracts for this account
-                self._subscribe_contracts(account_id)
+        # Check for exact matches or specific patterns to avoid substring issues
+        if status == "connected":
+            return True
+        return any(msg in status for msg in success_messages if msg != "connected")
+    
+    def _is_connection_failure(self, status: str) -> bool:
+        """Check if status indicates connection failure."""
+        return status in ["连接断开", "disconnected"]
+    
+    def _handle_connection_success(self, account_id: str, status: str):
+        """Handle successful connection."""
+        if not self.gateway_connections.get(account_id, False):  # Only log on first success
+            self.gateway_connections[account_id] = True
+            duration = self._get_connection_duration(account_id)
             
-        elif status == "连接断开" or status == "disconnected":
-            self.gateway_connections[account_id] = False
-            
-            self.logger.warning(
-                "Gateway disconnected",
+            self.logger.info(
+                "Gateway connected successfully",
                 account_id=account_id,
-                previous_connection_duration=f"{self._get_connection_duration(account_id):.2f}s",
+                connection_duration=f"{duration:.2f}s",
+                status_message=status,
                 timestamp=datetime.now(timezone.utc).isoformat()
             )
             
-            # Attempt basic retry if configured
-            self._attempt_reconnection(account_id)
-            
-        # Log state change
-        if previous_status != self.gateway_connections.get(account_id, False):
+            # Subscribe to contracts for this account
+            self._subscribe_contracts(account_id)
+    
+    def _handle_connection_failure(self, account_id: str):
+        """Handle connection failure."""
+        self.gateway_connections[account_id] = False
+        
+        self.logger.warning(
+            "Gateway disconnected",
+            account_id=account_id,
+            previous_connection_duration=f"{self._get_connection_duration(account_id):.2f}s",
+            timestamp=datetime.now(timezone.utc).isoformat()
+        )
+        
+        # Attempt basic retry if configured
+        self._attempt_reconnection(account_id)
+    
+    def _log_connection_state_change(self, account_id: str, previous_status: bool):
+        """Log connection state changes."""
+        current_status = self.gateway_connections.get(account_id, False)
+        if previous_status != current_status:
             self.logger.info(
                 "Connection state changed",
                 account_id=account_id,
                 previous_state="connected" if previous_status else "disconnected",
-                new_state="connected" if self.gateway_connections.get(account_id, False) else "disconnected"
+                new_state="connected" if current_status else "disconnected"
             )
     
     def _subscribe_contracts(self, account_id: str):
@@ -654,31 +800,14 @@ class GatewayManager:
     async def _initialize_ctp_gateway(self, account: Dict[str, Any]) -> bool:
         """Initialize CTP gateway for an account."""
         account_id = account['id']
-        settings = account['settings']
         
         try:
-            # Create event engine for this account
-            event_engine = EventEngine()
-            self.event_engines[account_id] = event_engine
-            
-            # Create main engine for this account
-            main_engine = MainEngine(event_engine)
-            self.main_engines[account_id] = main_engine
-            
-            # Add CTP gateway with account-specific name
-            gateway_name = f"CTP_{account_id}"
-            main_engine.add_gateway(CtpGateway, gateway_name)
-            
-            # Register event handlers for this account
-            self._register_event_handlers(event_engine, account_id)
-            
-            # Initialize connection tracking
-            self.connection_attempts[account_id] = 0
-            self.gateway_connections[account_id] = False
-            
+            # Setup engines
+            if not self._setup_engines(account_id, "CTP", CtpGateway):
+                return False
+                
             # Start connection
             self._connect_ctp_gateway(account)
-            
             return True
             
         except Exception as e:
@@ -728,7 +857,6 @@ class GatewayManager:
     async def _initialize_sopt_gateway(self, account: Dict[str, Any]) -> bool:
         """Initialize SOPT gateway for an account with CFlow error handling."""
         account_id = account['id']
-        settings = account['settings']
         
         if not SOPT_AVAILABLE:
             self.logger.warning(
@@ -738,64 +866,13 @@ class GatewayManager:
             return False
         
         try:
-            # Create event engine for this account
-            event_engine = EventEngine()
-            self.event_engines[account_id] = event_engine
-            
-            # Create main engine for this account
-            main_engine = MainEngine(event_engine)
-            self.main_engines[account_id] = main_engine
-            
-            # Add SOPT gateway with account-specific name and CFlow error handling
-            gateway_name = f"SOPT_{account_id}"
-            
-            try:
-                main_engine.add_gateway(SoptGateway, gateway_name)
-                self.logger.info(
-                    "SOPT gateway registered successfully",
-                    account_id=account_id,
-                    gateway_name=gateway_name
-                )
-            except RuntimeError as gateway_error:
-                error_msg = str(gateway_error)
-                if "CFlow file" in error_msg or "ThostFtdcUserApiImplBase.cpp" in error_msg:
-                    self.logger.warning(
-                        "SOPT CFlow file error detected - falling back to mock mode",
-                        account_id=account_id,
-                        error=error_msg
-                    )
-                    # Fallback to mock gateway
-                    return await self._initialize_mock_gateway(account)
-                else:
-                    # Re-raise if it's not a CFlow error
-                    raise gateway_error
-            
-            # Register event handlers for this account
-            self._register_event_handlers(event_engine, account_id)
-            
-            # Initialize connection tracking
-            self.connection_attempts[account_id] = 0
-            self.gateway_connections[account_id] = False
-            
+            # Setup engines with CFlow error handling
+            if not self._setup_sopt_engines_with_fallback(account):
+                return False
+                
             # Start connection with error handling
-            try:
-                self._connect_sopt_gateway(account)
-            except Exception as connect_error:
-                connect_error_msg = str(connect_error)
-                if "CFlow file" in connect_error_msg or "ThostFtdcUserApiImplBase.cpp" in connect_error_msg:
-                    self.logger.warning(
-                        "SOPT connection CFlow error - falling back to mock mode",
-                        account_id=account_id,
-                        error=connect_error_msg
-                    )
-                    # Clean up and fallback to mock
-                    if account_id in self.main_engines:
-                        del self.main_engines[account_id]
-                    if account_id in self.event_engines:
-                        del self.event_engines[account_id]
-                    return await self._initialize_mock_gateway(account)
-                else:
-                    raise connect_error
+            if not self._connect_sopt_with_fallback(account):
+                return False
             
             return True
             
@@ -808,7 +885,7 @@ class GatewayManager:
             )
             
             # Check for CFlow errors and fallback to mock
-            if "CFlow file" in error_msg or "ThostFtdcUserApiImplBase.cpp" in error_msg:
+            if self._is_cflow_error(error_msg):
                 self.logger.info(
                     "SOPT CFlow error during initialization - attempting mock fallback",
                     account_id=account_id
@@ -852,15 +929,29 @@ class GatewayManager:
     
     def _convert_to_sopt_settings(self, settings: Dict[str, Any]) -> Dict[str, str]:
         """Convert database settings to SOPT gateway format."""
-        # Extract connect_setting from account settings
+        # Check if settings already has connect_setting (database format)
         connect_setting = settings.get('connect_setting', {})
-        if not connect_setting:
-            self.logger.error("No connect_setting found in SOPT account settings")
-            return {}
+        if connect_setting:
+            # Return the connect_setting directly as it's already in the correct format
+            return connect_setting
         
-        # Return the connect_setting directly as it's already in the correct format
-        # The database already stores SOPT settings with Chinese field names
-        return connect_setting
+        # Otherwise, convert English field names to Chinese (for tests/direct use)
+        mapping = {
+            'username': '用户名',
+            'password': '密码',
+            'brokerID': '经纪商代码',
+            'tdAddress': '交易服务器',
+            'mdAddress': '行情服务器',
+            'appID': '产品名称',
+            'authCode': '授权编码'
+        }
+        
+        result = {}
+        for eng_key, cn_key in mapping.items():
+            if eng_key in settings:
+                result[cn_key] = settings[eng_key]
+        
+        return result
     
     async def _initialize_mock_gateway(self, account: Dict[str, Any]) -> bool:
         """Initialize mock gateway for development/testing."""
@@ -872,25 +963,13 @@ class GatewayManager:
                 account_id=account_id
             )
             
-            # Create mock event engine
-            event_engine = EventEngine()
-            self.event_engines[account_id] = event_engine
-            
-            # Create mock main engine
-            main_engine = MainEngine(event_engine)
-            self.main_engines[account_id] = main_engine
-            
-            # Register event handlers
-            self._register_event_handlers(event_engine, account_id)
-            
-            # Initialize connection tracking
-            self.connection_attempts[account_id] = 1
-            self.connection_start_times[account_id] = datetime.now(timezone.utc)
-            self.gateway_connections[account_id] = False
-            
+            # Setup engines
+            if not self._setup_engines(account_id, "MOCK", None):
+                return False
+                
             # Connect to mock gateway
             gateway_name = f"MOCK_{account_id}"
-            main_engine.connect(account['settings'], gateway_name)
+            self.main_engines[account_id].connect(account['settings'], gateway_name)
             
             self.logger.info(
                 "Mock gateway initialized successfully",
@@ -1115,7 +1194,9 @@ class GatewayManager:
             
             # Update health monitor if this is a canary contract
             if base_symbol in canary_contracts:
-                health_monitor.update_canary_tick(account_id, base_symbol, timestamp)
+                # Pass the original tick_data for validation
+                from app.services.health_monitor import health_monitor
+                health_monitor.update_canary_tick(account_id, base_symbol, timestamp, tick_data)
                 
         except Exception as e:
             # Log error but don't let it interrupt tick processing

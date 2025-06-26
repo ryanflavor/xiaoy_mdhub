@@ -542,16 +542,28 @@ class HealthMonitor:
                 error=str(e)
             )
     
-    def update_canary_tick(self, gateway_id: str, contract: str, timestamp: datetime):
+    def update_canary_tick(self, gateway_id: str, contract: str, timestamp: datetime, tick_data=None):
         """
-        Update canary contract tick timestamp and count.
+        Update canary contract tick timestamp and count with enhanced validation.
         
         Args:
             gateway_id: Gateway identifier
             contract: Contract symbol
             timestamp: Tick timestamp
+            tick_data: Optional tick data for validation
         """
         key = f"{gateway_id}:{contract}"
+        
+        # Validate tick data before processing
+        if not self._validate_tick_data(gateway_id, contract, timestamp, tick_data):
+            self.logger.warning(
+                "Invalid tick data received",
+                gateway_id=gateway_id,
+                contract=contract,
+                timestamp=timestamp.isoformat() if timestamp else None
+            )
+            return
+        
         self.canary_tick_timestamps[key] = timestamp
         
         # Initialize tick count list if not exists
@@ -571,6 +583,14 @@ class HealthMonitor:
         # Update heartbeat in health metrics
         if gateway_id in self.gateway_health:
             self.gateway_health[gateway_id].metrics.last_heartbeat = timestamp
+            
+        # Log successful tick validation
+        self.logger.debug(
+            "Validated canary tick",
+            gateway_id=gateway_id,
+            contract=contract,
+            tick_count_1min=len(self.canary_tick_counts[key])
+        )
     
     async def _log_resource_usage(self):
         """Log resource usage periodically."""
@@ -700,6 +720,181 @@ class HealthMonitor:
             })
         
         return canary_data
+    
+    def _validate_tick_data(self, gateway_id: str, contract: str, timestamp: datetime, tick_data=None) -> bool:
+        """
+        Validate tick data for quality and consistency.
+        
+        Args:
+            gateway_id: Gateway identifier
+            contract: Contract symbol
+            timestamp: Tick timestamp
+            tick_data: Optional tick data object
+            
+        Returns:
+            bool: True if tick data is valid, False otherwise
+        """
+        try:
+            current_time = datetime.now(timezone.utc)
+            
+            # Basic timestamp validation
+            if not timestamp:
+                return False
+                
+            # Check if timestamp is too old (more than 5 minutes)
+            if (current_time - timestamp).total_seconds() > 300:
+                self.logger.warning(
+                    "Tick data too old",
+                    gateway_id=gateway_id,
+                    contract=contract,
+                    age_seconds=(current_time - timestamp).total_seconds()
+                )
+                return False
+            
+            # Check if timestamp is in the future (more than 1 minute)
+            if (timestamp - current_time).total_seconds() > 60:
+                self.logger.warning(
+                    "Tick data from future",
+                    gateway_id=gateway_id,
+                    contract=contract,
+                    future_seconds=(timestamp - current_time).total_seconds()
+                )
+                return False
+            
+            # Validate tick data content if provided
+            if tick_data:
+                # Check for essential price fields
+                if hasattr(tick_data, 'last_price'):
+                    price = getattr(tick_data, 'last_price', 0)
+                    if price <= 0:
+                        self.logger.warning(
+                            "Invalid tick price",
+                            gateway_id=gateway_id,
+                            contract=contract,
+                            price=price
+                        )
+                        return False
+                
+                # Gateway-specific validation
+                if not self._validate_gateway_specific_tick(gateway_id, contract, tick_data):
+                    return False
+            
+            # Rate limiting check - prevent spam
+            key = f"{gateway_id}:{contract}"
+            if key in self.canary_tick_timestamps:
+                last_tick_time = self.canary_tick_timestamps[key]
+                time_since_last = (timestamp - last_tick_time).total_seconds()
+                
+                # Minimum 100ms between ticks to prevent spam
+                if time_since_last < 0.1:
+                    self.logger.debug(
+                        "Tick rate too high - throttling",
+                        gateway_id=gateway_id,
+                        contract=contract,
+                        time_since_last=time_since_last
+                    )
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(
+                "Tick validation error",
+                gateway_id=gateway_id,
+                contract=contract,
+                error=str(e)
+            )
+            return False
+    
+    def _validate_gateway_specific_tick(self, gateway_id: str, contract: str, tick_data) -> bool:
+        """
+        Perform gateway-specific tick data validation.
+        
+        Args:
+            gateway_id: Gateway identifier
+            contract: Contract symbol
+            tick_data: Tick data object
+            
+        Returns:
+            bool: True if validation passes, False otherwise
+        """
+        try:
+            # Get gateway type
+            gateway_type = None
+            if gateway_id in self.gateway_health:
+                gateway_type = self.gateway_health[gateway_id].gateway_type
+            
+            # CTP-specific validation (futures)
+            if gateway_type == "ctp":
+                # Validate futures contract format
+                if not self._is_futures_contract(contract):
+                    self.logger.warning(
+                        "Invalid futures contract for CTP",
+                        gateway_id=gateway_id,
+                        contract=contract
+                    )
+                    return False
+                    
+                # Validate reasonable price range for steel rebar futures
+                if hasattr(tick_data, 'last_price'):
+                    price = getattr(tick_data, 'last_price', 0)
+                    if price < 2000 or price > 6000:  # Reasonable range for rb contracts
+                        self.logger.warning(
+                            "CTP futures price out of range",
+                            gateway_id=gateway_id,
+                            contract=contract,
+                            price=price
+                        )
+                        return False
+            
+            # SOPT-specific validation (ETFs)
+            elif gateway_type == "sopt":
+                # Validate ETF contract format
+                if not self._is_etf_contract(contract):
+                    self.logger.warning(
+                        "Invalid ETF contract for SOPT",
+                        gateway_id=gateway_id,
+                        contract=contract
+                    )
+                    return False
+                    
+                # Validate reasonable price range for ETFs
+                if hasattr(tick_data, 'last_price'):
+                    price = getattr(tick_data, 'last_price', 0)
+                    if price < 1 or price > 100:  # Reasonable range for ETF prices
+                        self.logger.warning(
+                            "SOPT ETF price out of range",
+                            gateway_id=gateway_id,
+                            contract=contract,
+                            price=price
+                        )
+                        return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(
+                "Gateway-specific tick validation error",
+                gateway_id=gateway_id,
+                contract=contract,
+                error=str(e)
+            )
+            return False
+    
+    def _is_futures_contract(self, contract: str) -> bool:
+        """Check if contract is a valid futures contract."""
+        # CTP futures contracts typically have format like "rb2601" 
+        # (product code + year + month)
+        import re
+        pattern = r'^[a-zA-Z]{1,2}\d{4}$'
+        return bool(re.match(pattern, contract))
+    
+    def _is_etf_contract(self, contract: str) -> bool:
+        """Check if contract is a valid ETF contract."""
+        # ETF contracts are typically 6-digit codes like "510050", "159915"
+        import re
+        pattern = r'^\d{6}$'
+        return bool(re.match(pattern, contract))
 
 
 # Global health monitor instance
