@@ -583,7 +583,7 @@ async def start_gateway(
             message="Gateway started successfully"
         )
         
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now().isoformat()
         logger.info("Gateway started successfully")
         
         return GatewayControlResponse(
@@ -666,7 +666,7 @@ async def stop_gateway(
             message="Gateway stopped successfully"
         )
         
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now().isoformat()
         logger.info("Gateway stopped successfully", )
         
         return GatewayControlResponse(
@@ -749,7 +749,7 @@ async def restart_gateway(
             message="Gateway restarted successfully"
         )
         
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now().isoformat()
         logger.info("Gateway restarted successfully", )
         
         return GatewayControlResponse(
@@ -768,3 +768,46 @@ async def restart_gateway(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to restart gateway: {str(e)}"
         )
+
+
+@router.post(
+    "/resubscribe-canary",
+    response_model=Dict[str, Any],
+    summary="Resubscribe canary contracts",
+    description="Manually trigger subscription for canary contracts on all connected accounts",
+    responses={
+        200: {"description": "Canary contracts resubscribed successfully"},
+        500: {"description": "Internal server error"}
+    }
+)
+async def resubscribe_canary_contracts():
+    """
+    Manually trigger subscription for canary contracts on all connected accounts.
+    
+    This endpoint is useful when connections are already established but subscriptions
+    need to be refreshed, especially after configuration changes.
+    """
+    try:
+        logger.info("Manual canary contract resubscription requested")
+        
+        # Trigger resubscription via gateway manager
+        gateway_manager.resubscribe_canary_contracts()
+        
+        timestamp = datetime.now().isoformat()
+        logger.info("Canary contracts resubscribed successfully")
+        
+        return {
+            "success": True,
+            "message": "Canary contracts resubscribed successfully",
+            "action": "resubscribe_canary",
+            "timestamp": timestamp,
+            "connected_accounts": list(gateway_manager.gateway_connections.keys())
+        }
+        
+    except Exception as e:
+        logger.error("Error resubscribing canary contracts", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to resubscribe canary contracts: {str(e)}"
+        )
+

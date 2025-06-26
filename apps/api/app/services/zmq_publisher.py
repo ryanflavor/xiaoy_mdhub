@@ -100,7 +100,7 @@ class ZMQPublisher:
                     "ZMQ Publisher started successfully",
                     bind_address=bind_addr,
                     socket_type="PUB",
-                    timestamp=datetime.now(timezone.utc).isoformat()
+                    timestamp=datetime.now().isoformat()
                 )
                 
                 return True
@@ -219,7 +219,7 @@ class ZMQPublisher:
             tick_dict['vt_symbol'] = tick_data.vt_symbol
         
         # Add processing timestamp
-        tick_dict['processing_time'] = datetime.now(timezone.utc).isoformat()
+        tick_dict['processing_time'] = datetime.now().isoformat()
         
         return tick_dict
     

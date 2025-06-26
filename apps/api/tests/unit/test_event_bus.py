@@ -150,7 +150,7 @@ class TestEventBus:
         from datetime import datetime, timezone
         health_event = HealthStatusEvent(
             event_type="gateway_status_change",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(),
             gateway_id="test_gateway",
             gateway_type="ctp",
             previous_status=GatewayStatus.CONNECTING,

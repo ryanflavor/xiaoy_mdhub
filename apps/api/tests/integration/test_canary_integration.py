@@ -19,7 +19,7 @@ class MockTickData:
     """Mock tick data for testing."""
     def __init__(self, symbol="rb2601.SHFE", last_price=3800.0):
         self.symbol = symbol
-        self.datetime = datetime.now(timezone.utc)
+        self.datetime = datetime.now()
         self.last_price = last_price
         self.volume = 1000
         self.last_volume = 10
@@ -135,7 +135,7 @@ class TestCanaryIntegration:
         
         await health_monitor.start()
         
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         
         # 1. Test ACTIVE status (recent tick)
         health_monitor.update_canary_tick("test_ctp_01", "rb2601", current_time)
@@ -167,7 +167,7 @@ class TestCanaryIntegration:
         
         await health_monitor.start()
         
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         
         # Update canary ticks from multiple gateways for same contract
         health_monitor.update_canary_tick("test_ctp_01", "rb2601", current_time)
@@ -192,7 +192,7 @@ class TestCanaryIntegration:
         await health_monitor.start()
         
         # Update canary tick
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         health_monitor.update_canary_tick("test_ctp_01", "rb2601", current_time)
         
         # Give async task time to complete
@@ -246,7 +246,7 @@ class TestCanaryIntegration:
         assert heartbeat_result is True
         
         # Add recent canary tick
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         health_monitor.update_canary_tick("test_ctp_01", "rb2601", current_time)
         
         # Should still be healthy
@@ -271,7 +271,7 @@ class TestCanaryIntegration:
         
         await health_monitor.start()
         
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         
         # Test valid tick data
         valid_tick = MockTickData(symbol="rb2601.SHFE", last_price=3800.0)
@@ -305,7 +305,7 @@ class TestCanaryIntegration:
         
         import time
         start_time = time.time()
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         
         # Process 1000 canary ticks
         for i in range(1000):

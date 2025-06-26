@@ -105,7 +105,7 @@ def mock_tick_data():
         def __init__(self, symbol="TEST", price=100.0):
             self.symbol = symbol
             self.vt_symbol = f"{symbol}.MOCK"
-            self.datetime = datetime.now(timezone.utc)
+            self.datetime = datetime.now()
             self.last_price = price
             self.volume = 1000
             self.last_volume = 10

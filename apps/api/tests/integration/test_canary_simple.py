@@ -59,7 +59,7 @@ class TestCanarySimpleIntegration:
                 assert health_monitor.canary_heartbeat_timeout == 30
                 
                 # Test canary tick update
-                current_time = datetime.now(timezone.utc)
+                current_time = datetime.now()
                 health_monitor.update_canary_tick("test_ctp_01", "rb2601", current_time)
                 
                 # Verify canary data
@@ -113,11 +113,11 @@ class TestCanarySimpleIntegration:
                     gateway_type='ctp',
                     status=GatewayStatus.HEALTHY,
                     metrics=HealthMetrics(),
-                    last_updated=datetime.now(timezone.utc)
+                    last_updated=datetime.now()
                 )
                 
                 # Test healthy canary check
-                current_time = datetime.now(timezone.utc)
+                current_time = datetime.now()
                 health_monitor.update_canary_tick("test_ctp_01", "rb2601", current_time)
                 
                 heartbeat_result = await health_monitor._check_canary_heartbeat('test_ctp_01')
@@ -163,7 +163,7 @@ class TestCanarySimpleIntegration:
                 await health_monitor.start()
                 
                 # Update canary tick - should trigger WebSocket publish
-                current_time = datetime.now(timezone.utc)
+                current_time = datetime.now()
                 health_monitor.update_canary_tick("test_ctp_01", "rb2601", current_time)
                 
                 # Give async task time to complete

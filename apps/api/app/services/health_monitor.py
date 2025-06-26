@@ -38,10 +38,11 @@ class HealthMonitor:
         self.health_check_timeout = 10
         self.canary_heartbeat_timeout = 60
         self.fallback_mode = "connection_only"
-        self.ctp_canary_contracts = ["rb2601", "au2512"]
-        self.ctp_canary_primary = "rb2601"
-        self.sopt_canary_contracts = ["rb2601", "au2512"] 
-        self.sopt_canary_primary = "rb2601"
+        # Canary contracts will be loaded from environment variables
+        self.ctp_canary_contracts = []
+        self.ctp_canary_primary = ""
+        self.sopt_canary_contracts = [] 
+        self.sopt_canary_primary = ""
         
         # Health status tracking
         self.gateway_health: Dict[str, GatewayHealthStatus] = {}
@@ -169,7 +170,7 @@ class HealthMonitor:
                 gateway_type=gateway_type,
                 status=GatewayStatus.CONNECTING,
                 metrics=HealthMetrics(),
-                last_updated=datetime.now(timezone.utc)
+                last_updated=datetime.now()
             )
             
             self.gateway_health[gateway_id] = health_status
@@ -264,7 +265,7 @@ class HealthMonitor:
                 await self._update_gateway_status(gateway_id, new_status, previous_status)
             
             # Update last updated timestamp
-            health_status.last_updated = datetime.now(timezone.utc)
+            health_status.last_updated = datetime.now()
             
         except Exception as e:
             self.logger.error(
@@ -349,7 +350,7 @@ class HealthMonitor:
             if not last_tick:
                 # No tick data received yet, check if we should wait
                 health_status = self.gateway_health[gateway_id]
-                time_since_start = (datetime.now(timezone.utc) - health_status.last_updated).total_seconds()
+                time_since_start = (datetime.now() - health_status.last_updated).total_seconds()
                 
                 # Allow some time for initial tick data
                 if time_since_start < self.canary_heartbeat_timeout:
@@ -364,7 +365,7 @@ class HealthMonitor:
                     return False
             
             # Check if tick data is recent enough
-            time_since_tick = (datetime.now(timezone.utc) - last_tick).total_seconds()
+            time_since_tick = (datetime.now() - last_tick).total_seconds()
             is_fresh = time_since_tick <= self.canary_heartbeat_timeout
             
             # Update canary timestamp in metrics
@@ -459,7 +460,7 @@ class HealthMonitor:
             
         health_status = self.gateway_health[gateway_id]
         health_status.status = new_status
-        health_status.last_updated = datetime.now(timezone.utc)
+        health_status.last_updated = datetime.now()
         
         # Update error tracking
         if error_message:
@@ -518,7 +519,7 @@ class HealthMonitor:
             # Create status change event
             event = HealthStatusEvent(
                 event_type="gateway_status_change",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(),
                 gateway_id=gateway_id,
                 gateway_type=health_status.gateway_type,
                 previous_status=previous_status,
@@ -573,6 +574,9 @@ class HealthMonitor:
         # Add timestamp to tick count list
         self.canary_tick_counts[key].append(timestamp)
         
+        # Log canary tick update for monitoring
+        self.logger.debug(f"Updated canary tick: {key}, count: {len(self.canary_tick_counts[key])}")
+        
         # Clean old timestamps (older than 1 minute)
         from datetime import timedelta
         cutoff_time = timestamp - timedelta(minutes=1)
@@ -586,7 +590,7 @@ class HealthMonitor:
             
         # Determine canary status
         tick_count = len(self.canary_tick_counts[key])
-        time_since_last = (datetime.now(timezone.utc) - timestamp).total_seconds()
+        time_since_last = (datetime.now() - timestamp).total_seconds()
         
         if time_since_last <= self.canary_heartbeat_timeout:
             status = "ACTIVE"
@@ -688,7 +692,7 @@ class HealthMonitor:
             },
             "canary_contracts": all_canary_contracts,
             "canary_monitor_data": canary_monitor_data,
-            "last_health_check": datetime.now(timezone.utc).isoformat(),
+            "last_health_check": datetime.now().isoformat(),
             "performance": {
                 "total_health_checks": self.health_check_count,
                 "uptime_seconds": time.time() - self.start_time,
@@ -718,7 +722,7 @@ class HealthMonitor:
             List[Dict[str, Any]]: List of canary contract data for dashboard
         """
         canary_data = []
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()  # Use local time instead of UTC
         
         # Get all unique canary contracts across all gateway types
         all_canary_contracts = list(set(self.ctp_canary_contracts + self.sopt_canary_contracts))
@@ -748,6 +752,11 @@ class HealthMonitor:
                     status = "ACTIVE"
                 elif time_since_tick <= self.canary_heartbeat_timeout:  # Stale if within heartbeat timeout
                     status = "STALE"
+                
+                # Log status calculation for monitoring
+                self.logger.debug(
+                    f"Canary status: {contract} - {status} (time_since={time_since_tick:.1f}s, ticks={total_tick_count})"
+                )
             
             canary_data.append({
                 "contract_symbol": contract,
@@ -758,6 +767,7 @@ class HealthMonitor:
             })
         
         return canary_data
+    
     
     def _validate_tick_data(self, gateway_id: str, contract: str, timestamp: datetime, tick_data=None) -> bool:
         """
@@ -773,7 +783,7 @@ class HealthMonitor:
             bool: True if tick data is valid, False otherwise
         """
         try:
-            current_time = datetime.now(timezone.utc)
+            current_time = datetime.now()  # Use local time
             
             # Basic timestamp validation
             if not timestamp:

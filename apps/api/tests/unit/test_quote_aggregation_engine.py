@@ -232,7 +232,7 @@ class TestQuoteAggregationEngine:
         await aggregation_engine.start()
         
         # Setup gateway with recent cooldown
-        future_time = datetime.now(timezone.utc) + timedelta(minutes=1)
+        future_time = datetime.now() + timedelta(minutes=1)
         aggregation_engine.gateway_states["ctp_main"].failover_cooldown_until = future_time
         
         trigger_event = {"health_check_type": "canary_timeout"}
@@ -273,14 +273,14 @@ class TestQuoteAggregationEngine:
             gateway_type="ctp", 
             priority=1,
             is_healthy=True,
-            last_health_check=datetime.now(timezone.utc)
+            last_health_check=datetime.now()
         )
         aggregation_engine.gateway_states["ctp_backup"] = GatewayFailoverState(
             gateway_id="ctp_backup",
             gateway_type="ctp",
             priority=2, 
             is_healthy=False,
-            last_health_check=datetime.now(timezone.utc)
+            last_health_check=datetime.now()
         )
         
         status = aggregation_engine.get_status()
@@ -296,7 +296,7 @@ class TestQuoteAggregationEngine:
     @pytest.mark.asyncio
     async def test_cleanup_old_subscriptions(self, aggregation_engine):
         """Test cleanup of old inactive subscription records."""
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         old_time = current_time - timedelta(hours=2)
         
         # Add some old and new subscriptions

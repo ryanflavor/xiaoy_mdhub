@@ -107,7 +107,7 @@ class ZMQTestSubscriber:
             self.subscribe(topic_filter)
             
             self.is_running = True
-            self.start_time = datetime.now(timezone.utc)
+            self.start_time = datetime.now()
             
             print("\n" + "="*60)
             print("ZMQ Test Subscriber Started")
@@ -168,7 +168,7 @@ class ZMQTestSubscriber:
             if 'processing_time' in tick_data:
                 try:
                     processing_time = datetime.fromisoformat(tick_data['processing_time'].replace('Z', '+00:00'))
-                    current_time = datetime.now(timezone.utc)
+                    current_time = datetime.now()
                     latency_ms = (current_time - processing_time).total_seconds() * 1000
                     self.latencies.append(latency_ms)
                 except:
@@ -265,7 +265,7 @@ class ZMQTestSubscriber:
         if not self.start_time:
             return
         
-        duration = (datetime.now(timezone.utc) - self.start_time).total_seconds()
+        duration = (datetime.now() - self.start_time).total_seconds()
         
         print("\n" + "="*60)
         print("SUBSCRIPTION STATISTICS")

@@ -138,7 +138,7 @@ class TestHealthMonitor:
         assert heartbeat_result is True
         
         # Add canary tick data
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         health_monitor.update_canary_tick('test_ctp_account', 'rb2601', current_time)
         
         # Test with recent tick data
@@ -216,7 +216,7 @@ class TestHealthMonitor:
     
     def test_canary_tick_update(self, health_monitor):
         """Test canary tick timestamp updates."""
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now()
         
         health_monitor.update_canary_tick('test_gateway', 'rb2601', timestamp)
         
@@ -459,7 +459,7 @@ class TestHealthMonitor:
         import os
         
         # Create a large number of canary tick updates
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         for i in range(1000):
             health_monitor.update_canary_tick(f'gateway_{i}', f'contract_{i}', current_time)
         

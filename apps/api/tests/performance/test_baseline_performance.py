@@ -137,7 +137,7 @@ class PerformanceBaselineTest:
         return MockTickData(
             symbol=symbol,
             vt_symbol=f"{symbol}.MOCK",
-            datetime=datetime.now(timezone.utc),
+            datetime=datetime.now(),
             last_price=100.0 + (time.time() % 10),  # Varying price
             volume=1000 + int(time.time() % 100),
             last_volume=10,
@@ -178,7 +178,7 @@ class PerformanceBaselineTest:
                             tick_dict[field] = value
                 
                 tick_dict['vt_symbol'] = tick.vt_symbol
-                tick_dict['processing_time'] = datetime.now(timezone.utc).isoformat()
+                tick_dict['processing_time'] = datetime.now().isoformat()
                 
                 # Serialize with msgpack
                 message = msgpack.packb(tick_dict)

@@ -54,7 +54,7 @@ class GatewayFailoverState:
 class FailoverEvent:
     """Detailed failover event data."""
     event_type: str = "failover_executed"
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     failed_gateway_id: str = ""
     backup_gateway_id: str = ""
     affected_contracts: List[str] = field(default_factory=list)
@@ -180,7 +180,7 @@ class QuoteAggregationEngine:
                     gateway_type=account.gateway_type,
                     priority=account.priority,
                     is_healthy=True,  # Assume healthy until proven otherwise
-                    last_health_check=datetime.now(timezone.utc)
+                    last_health_check=datetime.now()
                 )
                 self.gateway_states[account.id] = gateway_state
             
@@ -245,7 +245,7 @@ class QuoteAggregationEngine:
     
     async def _update_gateway_health_state(self, gateway_id: str, status: str, event_data: Dict[str, Any]):
         """Update gateway health state based on health status event."""
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         
         if gateway_id not in self.gateway_states:
             self.logger.warning(
@@ -298,7 +298,7 @@ class QuoteAggregationEngine:
         # Check cooldown period
         failed_gateway_state = self.gateway_states.get(failed_gateway_id)
         if failed_gateway_state and failed_gateway_state.failover_cooldown_until:
-            if datetime.now(timezone.utc) < failed_gateway_state.failover_cooldown_until:
+            if datetime.now() < failed_gateway_state.failover_cooldown_until:
                 self.logger.info(
                     "Failover in cooldown period",
                     gateway_id=failed_gateway_id,
@@ -335,7 +335,7 @@ class QuoteAggregationEngine:
             failed_gateway_id: ID of the failed gateway
             trigger_event: Health event that triggered the failover
         """
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now()
         
         # Find backup gateway
         backup_gateway_id = await self._select_backup_gateway(failed_gateway_id)
@@ -361,7 +361,7 @@ class QuoteAggregationEngine:
         await self._migrate_contracts(failed_gateway_id, backup_gateway_id, affected_contracts)
         
         # Calculate execution time
-        end_time = datetime.now(timezone.utc)
+        end_time = datetime.now()
         execution_time_ms = int((end_time - start_time).total_seconds() * 1000)
         
         # Update performance tracking
@@ -546,7 +546,7 @@ class QuoteAggregationEngine:
                 self.contract_subscriptions[new_contract_key] = ContractSubscription(
                     symbol=contract_symbol,
                     gateway_id=backup_gateway_id,
-                    subscribed_at=datetime.now(timezone.utc),
+                    subscribed_at=datetime.now(),
                     is_active=True
                 )
             
@@ -593,7 +593,7 @@ class QuoteAggregationEngine:
     
     async def _cleanup_old_subscriptions(self):
         """Clean up old inactive subscription records."""
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         cutoff_time = current_time.replace(hour=current_time.hour - 1)  # 1 hour ago
         
         keys_to_remove = []

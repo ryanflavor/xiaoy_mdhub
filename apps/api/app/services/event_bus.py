@@ -112,7 +112,7 @@ class EventBus:
         event = {
             "type": event_type,
             "data": event_data,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now().isoformat()
         }
         
         try:

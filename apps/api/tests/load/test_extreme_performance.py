@@ -24,7 +24,7 @@ class MockTickData:
     def __init__(self, i: int):
         self.symbol = f"T{i%10}"
         self.vt_symbol = f"T{i%10}.EXTR"
-        self.datetime = datetime.now(timezone.utc)
+        self.datetime = datetime.now()
         self.last_price = 100.0 + (i % 100) * 0.01
         self.volume = 1000 + i % 1000
         self.last_volume = 10

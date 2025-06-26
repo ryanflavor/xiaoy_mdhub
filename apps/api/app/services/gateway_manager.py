@@ -37,7 +37,7 @@ except ImportError as e:
         """Mock tick data for testing"""
         def __init__(self, symbol="rb2510.SHFE"):
             self.symbol = symbol
-            self.datetime = datetime.now(timezone.utc)
+            self.datetime = datetime.now()
             self.last_price = round(3800 + random.uniform(-50, 50), 2)
             self.volume = random.randint(100, 1000)
             self.last_volume = random.randint(1, 10)
@@ -244,7 +244,7 @@ class GatewayManager:
         event_engine.register("eGateway", lambda event: self._on_gateway_event(event, account_id))
         
         # Tick data events
-        event_engine.register("eTick", lambda event: self._on_tick_event(event, account_id))
+        event_engine.register("eTick.", lambda event: self._on_tick_event(event, account_id))
         
         # Log events
         event_engine.register("eLog", lambda event: self._on_log_event(event, account_id))
@@ -485,7 +485,7 @@ class GatewayManager:
                 account_id=account_id,
                 connection_duration=f"{duration:.2f}s",
                 status_message=status,
-                timestamp=datetime.now(timezone.utc).isoformat()
+                timestamp=datetime.now().isoformat()
             )
             
             # Subscribe to contracts for this account
@@ -499,7 +499,7 @@ class GatewayManager:
             "Gateway disconnected",
             account_id=account_id,
             previous_connection_duration=f"{self._get_connection_duration(account_id):.2f}s",
-            timestamp=datetime.now(timezone.utc).isoformat()
+            timestamp=datetime.now().isoformat()
         )
         
         # Attempt basic retry if configured
@@ -574,7 +574,8 @@ class GatewayManager:
                             exchange = Exchange.SHFE
                         
                         req = SubscribeRequest(symbol=symbol, exchange=exchange)
-                        main_engine.subscribe(req, account_id)
+                        gateway_name = f"{account['gateway_type']}_{account_id}"
+                        main_engine.subscribe(req, gateway_name)
                     else:
                         # Alternative method for different vnpy versions
                         main_engine.gateway_map[f"{account['gateway_type']}_{account_id}"].subscribe(contract)
@@ -603,8 +604,12 @@ class GatewayManager:
         """Handle incoming tick data with validation and performance monitoring."""
         tick_data = event.data
         
+        # Extract basic tick information
+        symbol = getattr(tick_data, 'symbol', 'unknown')
+        price = getattr(tick_data, 'last_price', 'unknown')
+        
         try:
-            current_time = datetime.now(timezone.utc)
+            current_time = datetime.now()  # Use local time instead of UTC
             market_time = getattr(tick_data, 'datetime', None)
             symbol = getattr(tick_data, 'symbol', 'unknown')
             
@@ -725,7 +730,7 @@ class GatewayManager:
         start_time = self.connection_start_times.get(account_id)
         if not start_time:
             return 0.0
-        return (datetime.now(timezone.utc) - start_time).total_seconds()
+        return (datetime.now() - start_time).total_seconds()
     
     def _attempt_reconnection(self, account_id: str):
         """Attempt basic reconnection with single retry and 10s delay."""
@@ -748,7 +753,7 @@ class GatewayManager:
         def delayed_reconnect():
             time.sleep(10)
             self.connection_attempts[account_id] = attempts + 1
-            self.connection_start_times[account_id] = datetime.now(timezone.utc)
+            self.connection_start_times[account_id] = datetime.now()
             # Find account and reconnect
             account = next((acc for acc in self.active_accounts if acc['id'] == account_id), None)
             if account:
@@ -762,6 +767,10 @@ class GatewayManager:
     def _on_log_event(self, event: Event, account_id: str):
         """Handle vnpy log events for a specific account."""
         log_data = event.data
+        
+        # Process log events that contain tick data
+        if hasattr(log_data, 'msg') and 'CTP收到Tick数据' in str(log_data.msg):
+            self.logger.debug(f"CTP tick data log: {account_id}: {log_data.msg}")
         
         # Filter and forward relevant logs
         if hasattr(log_data, 'msg') and hasattr(log_data, 'level'):
@@ -788,6 +797,15 @@ class GatewayManager:
                 if pattern in message:
                     self._handle_connection_status_change(pattern, account_id)
                     break
+    
+    def resubscribe_canary_contracts(self):
+        """Manually trigger subscription for canary contracts on all connected accounts."""
+        self.logger.info("Manually triggering canary contract subscriptions")
+        
+        for account_id in self.gateway_connections:
+            if self.gateway_connections.get(account_id, False):  # If connected
+                self.logger.info(f"Re-subscribing contracts for connected account: {account_id}")
+                self._subscribe_contracts(account_id)
     
     async def shutdown(self):
         """Gracefully shutdown the gateway manager and ZMQ publisher."""
@@ -861,14 +879,14 @@ class GatewayManager:
                 self.logger.warning(
                     "CTP Gateway connection skipped - outside trading hours",
                     account_id=account_id,
-                    current_time=datetime.now(timezone.utc).isoformat(),
+                    current_time=datetime.now().isoformat(),
                     force_connection=trading_time_manager.force_gateway_connection,
                     enable_check=trading_time_manager.enable_trading_time_check
                 )
                 return
             
             self.connection_attempts[account_id] = self.connection_attempts.get(account_id, 0) + 1
-            self.connection_start_times[account_id] = datetime.now(timezone.utc)
+            self.connection_start_times[account_id] = datetime.now()
             
             # Use account-specific gateway name
             gateway_name = f"CTP_{account_id}"
@@ -949,14 +967,14 @@ class GatewayManager:
                 self.logger.warning(
                     "SOPT Gateway connection skipped - outside trading hours",
                     account_id=account_id,
-                    current_time=datetime.now(timezone.utc).isoformat(),
+                    current_time=datetime.now().isoformat(),
                     force_connection=trading_time_manager.force_gateway_connection,
                     enable_check=trading_time_manager.enable_trading_time_check
                 )
                 return
             
             self.connection_attempts[account_id] = self.connection_attempts.get(account_id, 0) + 1
-            self.connection_start_times[account_id] = datetime.now(timezone.utc)
+            self.connection_start_times[account_id] = datetime.now()
             
             # Use account-specific gateway name
             gateway_name = f"SOPT_{account_id}"
@@ -1236,10 +1254,10 @@ class GatewayManager:
             canary_contracts = []
             account = next((acc for acc in self.active_accounts if acc['id'] == account_id), None)
             if account:
-                gateway_type = account['gateway_type']
-                if gateway_type == 'ctp':
+                gateway_type = account['gateway_type'].upper()  # Ensure uppercase comparison
+                if gateway_type == 'CTP':
                     canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,au2512").split(",")
-                elif gateway_type == 'sopt':
+                elif gateway_type == 'SOPT':
                     canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,au2512").split(",")
             
             # Extract base symbol (remove exchange suffix if present)
@@ -1247,6 +1265,7 @@ class GatewayManager:
             
             # Update health monitor if this is a canary contract
             if base_symbol in canary_contracts:
+                self.logger.debug(f"Updating canary tick: {account_id}:{base_symbol}")
                 health_monitor.update_canary_tick(account_id, base_symbol, timestamp, tick_data)
                 
         except Exception as e:

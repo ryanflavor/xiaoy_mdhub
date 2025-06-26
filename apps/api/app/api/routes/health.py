@@ -142,7 +142,7 @@ async def health_check() -> HealthResponse:
     
     return HealthResponse(
         status="ok",
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now().isoformat(),
         version="1.0.0",
         environment=os.getenv("ENVIRONMENT", "development"),
         database_available=db_available,
@@ -180,7 +180,7 @@ async def test_canary():
         Status of the test canary tick injection
     """
     try:
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now()
         
         # Simulate tick data for canary contracts
         test_results = []
@@ -209,5 +209,5 @@ async def test_canary():
         return {
             "status": "error", 
             "message": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now().isoformat()
         }

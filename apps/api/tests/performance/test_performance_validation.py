@@ -29,7 +29,7 @@ class MockTickData:
     def __init__(self):
         self.symbol = "TEST"
         self.vt_symbol = "TEST.MOCK"
-        self.datetime = datetime.now(timezone.utc)
+        self.datetime = datetime.now()
         self.last_price = 100.0
         self.volume = 1000
         self.last_volume = 10

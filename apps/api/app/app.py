@@ -251,11 +251,11 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
         logger = structlog.get_logger()
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now()
         
         response = await call_next(request)
         
-        process_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+        process_time = (datetime.now() - start_time).total_seconds()
         
         logger.info(
             "Request processed",
@@ -283,7 +283,7 @@ def create_app() -> FastAPI:
             content={
                 "error": "Database error",
                 "message": "Database service is temporarily unavailable",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now().isoformat()
             }
         )
     
@@ -303,7 +303,7 @@ def create_app() -> FastAPI:
             content={
                 "error": "Internal server error",
                 "message": "An unexpected error occurred",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now().isoformat()
             }
         )
     

@@ -226,8 +226,8 @@ class TestGatewayManager:
             'test_sopt_account': 2
         }
         gateway_manager.connection_start_times = {
-            'test_ctp_account': datetime.now(timezone.utc),
-            'test_sopt_account': datetime.now(timezone.utc)
+            'test_ctp_account': datetime.now(),
+            'test_sopt_account': datetime.now()
         }
         
         status = gateway_manager.get_account_status()
@@ -245,7 +245,7 @@ class TestGatewayManager:
         """Test handling of connection status changes."""
         account_id = 'test_account'
         gateway_manager.gateway_connections[account_id] = False
-        gateway_manager.connection_start_times[account_id] = datetime.now(timezone.utc)
+        gateway_manager.connection_start_times[account_id] = datetime.now()
         
         # Test successful connection
         gateway_manager._handle_connection_status_change('connected', account_id)
