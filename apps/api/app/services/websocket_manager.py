@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from collections import deque
 
 from app.services.event_bus import event_bus
+# Import timezone utilities
+from app.utils.timezone import now_china, to_china_tz, CHINA_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +50,7 @@ class WebSocketManager:
         self._rate_limit_window = 1.0  # seconds
         self._rate_limit_max_events = 100
         self._event_buffer = deque(maxlen=1000)
-        self._last_flush_time = datetime.now()
+        self._last_flush_time = now_china()
         
         # Log buffer for system logs
         self._log_buffer = deque(maxlen=500)
@@ -90,7 +92,7 @@ class WebSocketManager:
         client_id = str(uuid.uuid4())
         async with self._lock:
             self.active_connections[client_id] = websocket
-            self.connection_health[client_id] = datetime.now()
+            self.connection_health[client_id] = now_china()
             
         # Start ping monitoring if not already running
         if self._ping_task is None or self._ping_task.done():
@@ -124,7 +126,7 @@ class WebSocketManager:
             
         # Add timestamp if not present
         if "timestamp" not in message:
-            message["timestamp"] = datetime.now().isoformat()
+            message["timestamp"] = now_china().isoformat()
             
         disconnected_clients = []
         
@@ -172,7 +174,7 @@ class WebSocketManager:
                 # Sleep for ping interval
                 await asyncio.sleep(self._ping_interval)
                 
-                current_time = datetime.now()
+                current_time = now_china()
                 disconnected_clients = []
                 
                 # Check each connection
@@ -208,7 +210,7 @@ class WebSocketManager:
     def update_client_health(self, client_id: str) -> None:
         """Update the last seen timestamp for a client."""
         if client_id in self.connection_health:
-            self.connection_health[client_id] = datetime.now()
+            self.connection_health[client_id] = now_china()
     
     async def shutdown(self) -> None:
         """Gracefully shutdown all connections."""
@@ -247,7 +249,7 @@ class WebSocketManager:
     def get_connection_info(self) -> Dict[str, dict]:
         """Get information about all active connections."""
         info = {}
-        current_time = datetime.now()
+        current_time = now_china()
         
         for client_id, _ in self.active_connections.items():
             last_seen = self.connection_health.get(client_id)
@@ -273,7 +275,7 @@ class WebSocketManager:
             # Transform internal event to client format
             client_event = {
                 "event_type": "gateway_status_change",
-                "timestamp": event_data.get("timestamp", datetime.now().isoformat()),
+                "timestamp": event_data.get("timestamp", now_china().isoformat()),
                 "gateway_id": event_data.get("gateway_id"),
                 "gateway_type": event_data.get("gateway_type"),
                 "previous_status": event_data.get("previous_status"),
@@ -293,7 +295,7 @@ class WebSocketManager:
             # Transform internal event to client format
             client_event = {
                 "event_type": "gateway_recovery_status",
-                "timestamp": event_data.get("timestamp", datetime.now().isoformat()),
+                "timestamp": event_data.get("timestamp", now_china().isoformat()),
                 "gateway_id": event_data.get("gateway_id"),
                 "recovery_status": event_data.get("status"),
                 "attempt": event_data.get("attempt"),
@@ -322,7 +324,7 @@ class WebSocketManager:
             
         log_event = {
             "event_type": "system_log",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": now_china().isoformat(),
             "level": level,
             "message": message,
             "source": source,
@@ -350,7 +352,7 @@ class WebSocketManager:
         """
         canary_event = {
             "event_type": "canary_tick_update",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": now_china().isoformat(),
             "gateway_id": gateway_id,
             "contract_symbol": contract_symbol,
             "tick_count_1min": tick_count_1min,
@@ -364,7 +366,7 @@ class WebSocketManager:
     
     async def _rate_limited_broadcast(self, event: Dict[str, Any]) -> None:
         """Apply rate limiting to event broadcasts."""
-        current_time = datetime.now()
+        current_time = now_china()
         
         # Add event to buffer
         self._event_buffer.append(event)
@@ -418,7 +420,7 @@ class WebSocketManager:
         try:
             control_event = {
                 "event_type": "gateway_control_action",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": now_china().isoformat(),
                 "gateway_id": gateway_id,
                 "action": action,
                 "status": status,

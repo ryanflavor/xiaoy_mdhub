@@ -11,6 +11,9 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 import structlog
 
+# Import timezone utilities
+from app.utils.timezone import now_china, to_china_tz, CHINA_TZ
+
 from app.models.health_status import (
     GatewayStatus, 
     HealthMetrics, 
@@ -170,7 +173,7 @@ class HealthMonitor:
                 gateway_type=gateway_type,
                 status=GatewayStatus.CONNECTING,
                 metrics=HealthMetrics(),
-                last_updated=datetime.now()
+                last_updated=now_china()
             )
             
             self.gateway_health[gateway_id] = health_status
@@ -265,7 +268,7 @@ class HealthMonitor:
                 await self._update_gateway_status(gateway_id, new_status, previous_status)
             
             # Update last updated timestamp
-            health_status.last_updated = datetime.now()
+            health_status.last_updated = now_china()
             
         except Exception as e:
             self.logger.error(
@@ -350,7 +353,7 @@ class HealthMonitor:
             if not last_tick:
                 # No tick data received yet, check if we should wait
                 health_status = self.gateway_health[gateway_id]
-                time_since_start = (datetime.now() - health_status.last_updated).total_seconds()
+                time_since_start = (now_china() - health_status.last_updated).total_seconds()
                 
                 # Allow some time for initial tick data
                 if time_since_start < self.canary_heartbeat_timeout:
@@ -365,7 +368,7 @@ class HealthMonitor:
                     return False
             
             # Check if tick data is recent enough
-            time_since_tick = (datetime.now() - last_tick).total_seconds()
+            time_since_tick = (now_china() - last_tick).total_seconds()
             is_fresh = time_since_tick <= self.canary_heartbeat_timeout
             
             # Update canary timestamp in metrics
@@ -460,7 +463,7 @@ class HealthMonitor:
             
         health_status = self.gateway_health[gateway_id]
         health_status.status = new_status
-        health_status.last_updated = datetime.now()
+        health_status.last_updated = now_china()
         
         # Update error tracking
         if error_message:
@@ -519,7 +522,7 @@ class HealthMonitor:
             # Create status change event
             event = HealthStatusEvent(
                 event_type="gateway_status_change",
-                timestamp=datetime.now(),
+                timestamp=now_china(),
                 gateway_id=gateway_id,
                 gateway_type=health_status.gateway_type,
                 previous_status=previous_status,
@@ -590,7 +593,7 @@ class HealthMonitor:
             
         # Determine canary status
         tick_count = len(self.canary_tick_counts[key])
-        time_since_last = (datetime.now() - timestamp).total_seconds()
+        time_since_last = (now_china() - timestamp).total_seconds()
         
         if time_since_last <= self.canary_heartbeat_timeout:
             status = "ACTIVE"
@@ -692,7 +695,7 @@ class HealthMonitor:
             },
             "canary_contracts": all_canary_contracts,
             "canary_monitor_data": canary_monitor_data,
-            "last_health_check": datetime.now().isoformat(),
+            "last_health_check": now_china().isoformat(),
             "performance": {
                 "total_health_checks": self.health_check_count,
                 "uptime_seconds": time.time() - self.start_time,
@@ -722,7 +725,7 @@ class HealthMonitor:
             List[Dict[str, Any]]: List of canary contract data for dashboard
         """
         canary_data = []
-        current_time = datetime.now()  # Use local time instead of UTC
+        current_time = now_china()  # Use China timezone
         
         # Get all unique canary contracts across all gateway types
         all_canary_contracts = list(set(self.ctp_canary_contracts + self.sopt_canary_contracts))
@@ -783,7 +786,7 @@ class HealthMonitor:
             bool: True if tick data is valid, False otherwise
         """
         try:
-            current_time = datetime.now()  # Use local time
+            current_time = now_china()  # Use China timezone
             
             # Basic timestamp validation
             if not timestamp:

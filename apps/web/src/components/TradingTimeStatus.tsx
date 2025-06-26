@@ -31,11 +31,14 @@ export function TradingTimeStatus({ className = '', showDetails = false }: Tradi
   const fetchStatus = async () => {
     try {
       setError(null);
+      console.log('🕐 Fetching trading time status...');
+      console.log('🔗 API URL from env:', process.env.NEXT_PUBLIC_API_BASE_URL);
       const data = await TradingTimeService.getTradingTimeStatus();
+      console.log('✅ Trading time data received:', data);
       setStatus(data);
     } catch (err) {
+      console.error('❌ Trading time fetch error:', err);
       setError(err instanceof Error ? err.message : '获取交易时间状态失败');
-      console.error('Failed to fetch trading time status:', err);
     } finally {
       setLoading(false);
     }

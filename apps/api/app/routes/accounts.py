@@ -12,6 +12,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 import structlog
 
+# Import timezone utilities
+from app.utils.timezone import now_china, to_china_tz, CHINA_TZ
+
 from ..services.database_service import database_service
 from ..models.market_data_account import MarketDataAccount
 from ..services.gateway_manager import gateway_manager
@@ -583,7 +586,7 @@ async def start_gateway(
             message="Gateway started successfully"
         )
         
-        timestamp = datetime.now().isoformat()
+        timestamp = now_china().isoformat()
         logger.info("Gateway started successfully")
         
         return GatewayControlResponse(
@@ -666,7 +669,7 @@ async def stop_gateway(
             message="Gateway stopped successfully"
         )
         
-        timestamp = datetime.now().isoformat()
+        timestamp = now_china().isoformat()
         logger.info("Gateway stopped successfully", )
         
         return GatewayControlResponse(
@@ -749,7 +752,7 @@ async def restart_gateway(
             message="Gateway restarted successfully"
         )
         
-        timestamp = datetime.now().isoformat()
+        timestamp = now_china().isoformat()
         logger.info("Gateway restarted successfully", )
         
         return GatewayControlResponse(
@@ -793,7 +796,7 @@ async def resubscribe_canary_contracts():
         # Trigger resubscription via gateway manager
         gateway_manager.resubscribe_canary_contracts()
         
-        timestamp = datetime.now().isoformat()
+        timestamp = now_china().isoformat()
         logger.info("Canary contracts resubscribed successfully")
         
         return {

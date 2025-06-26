@@ -11,6 +11,9 @@ import structlog
 import psutil
 import os
 
+# Import timezone utilities
+from app.utils.timezone import now_china, to_china_tz, CHINA_TZ
+
 # Conditional imports for gateways - handle gracefully if not available
 try:
     from vnpy.event import EventEngine, Event
@@ -37,7 +40,7 @@ except ImportError as e:
         """Mock tick data for testing"""
         def __init__(self, symbol="rb2510.SHFE"):
             self.symbol = symbol
-            self.datetime = datetime.now()
+            self.datetime = now_china()
             self.last_price = round(3800 + random.uniform(-50, 50), 2)
             self.volume = random.randint(100, 1000)
             self.last_volume = random.randint(1, 10)
@@ -485,7 +488,7 @@ class GatewayManager:
                 account_id=account_id,
                 connection_duration=f"{duration:.2f}s",
                 status_message=status,
-                timestamp=datetime.now().isoformat()
+                timestamp=now_china().isoformat()
             )
             
             # Subscribe to contracts for this account
@@ -499,7 +502,7 @@ class GatewayManager:
             "Gateway disconnected",
             account_id=account_id,
             previous_connection_duration=f"{self._get_connection_duration(account_id):.2f}s",
-            timestamp=datetime.now().isoformat()
+            timestamp=now_china().isoformat()
         )
         
         # Attempt basic retry if configured
@@ -609,7 +612,7 @@ class GatewayManager:
         price = getattr(tick_data, 'last_price', 'unknown')
         
         try:
-            current_time = datetime.now()  # Use local time instead of UTC
+            current_time = now_china()  # Use China timezone
             market_time = getattr(tick_data, 'datetime', None)
             symbol = getattr(tick_data, 'symbol', 'unknown')
             
@@ -730,7 +733,7 @@ class GatewayManager:
         start_time = self.connection_start_times.get(account_id)
         if not start_time:
             return 0.0
-        return (datetime.now() - start_time).total_seconds()
+        return (now_china() - start_time).total_seconds()
     
     def _attempt_reconnection(self, account_id: str):
         """Attempt basic reconnection with single retry and 10s delay."""
@@ -753,7 +756,7 @@ class GatewayManager:
         def delayed_reconnect():
             time.sleep(10)
             self.connection_attempts[account_id] = attempts + 1
-            self.connection_start_times[account_id] = datetime.now()
+            self.connection_start_times[account_id] = now_china()
             # Find account and reconnect
             account = next((acc for acc in self.active_accounts if acc['id'] == account_id), None)
             if account:
@@ -879,14 +882,14 @@ class GatewayManager:
                 self.logger.warning(
                     "CTP Gateway connection skipped - outside trading hours",
                     account_id=account_id,
-                    current_time=datetime.now().isoformat(),
+                    current_time=now_china().isoformat(),
                     force_connection=trading_time_manager.force_gateway_connection,
                     enable_check=trading_time_manager.enable_trading_time_check
                 )
                 return
             
             self.connection_attempts[account_id] = self.connection_attempts.get(account_id, 0) + 1
-            self.connection_start_times[account_id] = datetime.now()
+            self.connection_start_times[account_id] = now_china()
             
             # Use account-specific gateway name
             gateway_name = f"CTP_{account_id}"
@@ -967,14 +970,14 @@ class GatewayManager:
                 self.logger.warning(
                     "SOPT Gateway connection skipped - outside trading hours",
                     account_id=account_id,
-                    current_time=datetime.now().isoformat(),
+                    current_time=now_china().isoformat(),
                     force_connection=trading_time_manager.force_gateway_connection,
                     enable_check=trading_time_manager.enable_trading_time_check
                 )
                 return
             
             self.connection_attempts[account_id] = self.connection_attempts.get(account_id, 0) + 1
-            self.connection_start_times[account_id] = datetime.now()
+            self.connection_start_times[account_id] = now_china()
             
             # Use account-specific gateway name
             gateway_name = f"SOPT_{account_id}"

@@ -336,19 +336,28 @@ export function useDashboardData(): UseDashboardDataReturn {
       setIsLoading(true);
       setError(null);
       
+      console.log('🔄 Loading dashboard data...');
+      console.log('📡 API Base URL:', process.env.NEXT_PUBLIC_API_BASE_URL);
+      
       // Fetch health data which includes gateway status
       const healthResponse = await apiClient.get<any>('/health');
       const healthData = healthResponse.data;
       
+      console.log('📊 Raw health data:', healthData);
+      console.log('🔧 Gateway accounts:', healthData?.gateway_manager?.accounts);
+      
       // Transform API response to dashboard format
       const transformedData = transformHealthResponse(healthData);
+      
+      console.log('✨ Transformed data:', transformedData);
+      console.log('🚪 Gateways count:', transformedData.gateways?.length);
       
       setData(prevData => ({
         ...prevData,
         ...transformedData
       }));
     } catch (err) {
-      console.error('Failed to load initial dashboard data:', err);
+      console.error('❌ Failed to load initial dashboard data:', err);
       setError('Failed to load dashboard data');
     } finally {
       setIsLoading(false);

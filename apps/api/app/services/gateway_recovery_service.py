@@ -11,6 +11,8 @@ from typing import Dict, List, Optional, Any
 from enum import Enum
 import structlog
 
+# Import timezone utilities
+from app.utils.timezone import now_china, to_china_tz, CHINA_TZ
 from app.services.event_bus import event_bus
 from app.services.gateway_manager import gateway_manager
 from app.services.health_monitor import health_monitor
@@ -346,7 +348,7 @@ class GatewayRecoveryService:
         """
         recovery_state = self.recovery_states[gateway_id]
         recovery_state.status = RecoveryStatus.COOLING_DOWN
-        recovery_state.cooldown_start_time = datetime.now()
+        recovery_state.cooldown_start_time = now_china()
         
         # Calculate cooldown duration with exponential backoff
         cooldown_duration = self._get_cooldown_duration(recovery_state.restart_attempt_count)
@@ -428,7 +430,7 @@ class GatewayRecoveryService:
         """
         recovery_state = self.recovery_states[gateway_id]
         recovery_state.status = RecoveryStatus.RESTARTING
-        recovery_state.recovery_start_time = datetime.now()
+        recovery_state.recovery_start_time = now_china()
         recovery_state.restart_attempt_count += 1
         
         self.total_recovery_attempts += 1
@@ -609,18 +611,18 @@ class GatewayRecoveryService:
         """
         recovery_state = self.recovery_states[gateway_id]
         recovery_state.status = RecoveryStatus.RECOVERY_SUCCESS
-        recovery_state.last_restart_timestamp = datetime.now()
+        recovery_state.last_restart_timestamp = now_china()
         
         # Calculate recovery duration
         recovery_duration = 0
         if recovery_state.recovery_start_time:
-            recovery_duration = (datetime.now() - recovery_state.recovery_start_time).total_seconds()
+            recovery_duration = (now_china() - recovery_state.recovery_start_time).total_seconds()
         
         # Add to recovery history
         recovery_state.recovery_history.append({
             "attempt": recovery_state.restart_attempt_count,
             "result": "success",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": now_china().isoformat(),
             "duration_seconds": recovery_duration
         })
         
@@ -662,13 +664,13 @@ class GatewayRecoveryService:
         # Calculate recovery duration
         recovery_duration = 0
         if recovery_state.recovery_start_time:
-            recovery_duration = (datetime.now() - recovery_state.recovery_start_time).total_seconds()
+            recovery_duration = (now_china() - recovery_state.recovery_start_time).total_seconds()
         
         # Add to recovery history
         recovery_state.recovery_history.append({
             "attempt": recovery_state.restart_attempt_count,
             "result": "failed",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": now_china().isoformat(),
             "duration_seconds": recovery_duration,
             "error_message": error_message
         })
@@ -709,7 +711,7 @@ class GatewayRecoveryService:
             
             event_data = {
                 "event_type": event_type,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": now_china().isoformat(),
                 "gateway_id": gateway_id,
                 "gateway_type": recovery_state.gateway_type,
                 "metadata": metadata
