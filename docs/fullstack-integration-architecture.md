@@ -41,7 +41,7 @@ This document outlines the complete web-API integration solution for the Market 
 │                                                             │
 │ • Real CTP Connections: Returns "连接成功"/"连接断开"        │
 │ • WebSocket Server: /ws endpoint for real-time events       │
-│ • Health Monitor: Canary contracts (rb2601, rb2505)         │
+│ • Health Monitor: Canary contracts (rb2601, au2512)         │
 │ • Database: SQLite with account configurations              │
 │ • ZeroMQ Publisher: High-performance tick distribution      │
 └─────────────────────────────────────────────────────────────┘
@@ -108,7 +108,7 @@ CORS_ORIGINS=["http://localhost:3000"]
     ]
   },
   "health_monitor": {
-    "canary_contracts": ["rb2601.SHFE", "rb2505.SHFE"],
+    "canary_contracts": ["rb2601.SHFE", "au2512.SHFE"],
     "last_health_check": "2024-01-15T10:29:58Z"
   }
 }

@@ -7,14 +7,17 @@ import {
   DashboardData,
   GatewayStatus,
   CanaryMonitorData,
+  CanaryContractConfig,
   SystemHealthSummary,
   WebSocketState,
   GatewayStatusChangeMessage,
   GatewayControlActionMessage,
   SystemHealthMessage,
+  CanaryTickUpdateMessage,
   isGatewayStatusChange,
   isGatewayControlAction,
   isSystemHealth,
+  isCanaryTickUpdate,
   AnyWebSocketMessage,
 } from '@xiaoy-mdhub/shared-types';
 import { WebSocketClient, createWebSocketClient } from '@/services/websocket';
@@ -138,6 +141,36 @@ export function useDashboardData(): UseDashboardDataReturn {
     }));
   }, []);
 
+  // Update canary contract data from WebSocket message
+  const updateCanaryTick = useCallback((message: CanaryTickUpdateMessage) => {
+    setData((prevData: DashboardData) => {
+      const existingContractIndex = prevData.canary_contracts.findIndex(
+        (c: CanaryMonitorData) => c.contract_symbol === message.contract_symbol
+      );
+
+      const updatedContract: CanaryMonitorData = {
+        contract_symbol: message.contract_symbol,
+        tick_count_1min: message.tick_count_1min,
+        last_tick_time: message.last_tick_time,
+        status: message.status,
+        threshold_seconds: message.threshold_seconds,
+      };
+
+      let updatedContracts;
+      if (existingContractIndex >= 0) {
+        updatedContracts = [...prevData.canary_contracts];
+        updatedContracts[existingContractIndex] = updatedContract;
+      } else {
+        updatedContracts = [...prevData.canary_contracts, updatedContract];
+      }
+
+      return {
+        ...prevData,
+        canary_contracts: updatedContracts,
+      };
+    });
+  }, []);
+
   // Handle gateway control action from WebSocket message
   const handleGatewayControlAction = useCallback((message: GatewayControlActionMessage) => {
     // Update gateway status based on control action
@@ -204,12 +237,14 @@ export function useDashboardData(): UseDashboardDataReturn {
         handleGatewayControlAction(message);
       } else if (isSystemHealth(message)) {
         updateSystemHealth(message);
+      } else if (isCanaryTickUpdate(message)) {
+        updateCanaryTick(message);
       }
     } catch (err) {
       console.error('Error handling WebSocket message:', err);
       setError('Error processing WebSocket message');
     }
-  }, [updateGatewayStatus, handleGatewayControlAction, updateSystemHealth]);
+  }, [updateGatewayStatus, handleGatewayControlAction, updateSystemHealth, updateCanaryTick]);
 
   // Handle connection state changes
   const handleStateChange = useCallback((state: WebSocketState) => {
@@ -251,14 +286,33 @@ export function useDashboardData(): UseDashboardDataReturn {
     }));
 
     // Transform canary contracts - use new canary_monitor_data if available
-    const canaryContracts: CanaryMonitorData[] = healthData.health_monitor?.canary_monitor_data || 
-      healthData.health_monitor?.canary_contracts?.map((symbol: string) => ({
+    let canaryContracts: CanaryMonitorData[] = [];
+    
+    if (healthData.health_monitor?.canary_monitor_data) {
+      // Use the new detailed canary monitor data from health_monitor
+      canaryContracts = healthData.health_monitor.canary_monitor_data;
+    } else if (healthData.canary_config) {
+      // Generate from canary config if monitor data not available
+      const config: CanaryContractConfig = healthData.canary_config;
+      const allContracts = [...config.ctp_contracts, ...config.sopt_contracts];
+      
+      canaryContracts = allContracts.map((symbol: string) => ({
         contract_symbol: symbol,
-        status: 'INACTIVE' as const, // Default status for legacy data
-        last_tick_time: healthData.health_monitor.last_health_check || new Date().toISOString(),
+        status: 'INACTIVE' as const, // Default status for config-only data
+        last_tick_time: new Date().toISOString(),
         tick_count_1min: 0, // Will be updated via WebSocket
+        threshold_seconds: config.heartbeat_timeout_seconds
+      }));
+    } else {
+      // Legacy fallback
+      canaryContracts = healthData.health_monitor?.canary_contracts?.map((symbol: string) => ({
+        contract_symbol: symbol,
+        status: 'INACTIVE' as const,
+        last_tick_time: healthData.health_monitor.last_health_check || new Date().toISOString(),
+        tick_count_1min: 0,
         threshold_seconds: 60
       })) || [];
+    }
 
     return {
       gateways: transformedGateways,

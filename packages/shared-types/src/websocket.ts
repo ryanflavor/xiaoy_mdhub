@@ -21,6 +21,9 @@ export enum WebSocketEventType {
   SYSTEM_LOG = 'system_log',
   SYSTEM_HEALTH = 'system_health',
   
+  // Canary monitoring events
+  CANARY_TICK_UPDATE = 'canary_tick_update',
+  
   // Control events
   PING = 'ping',
   PONG = 'pong',
@@ -119,6 +122,19 @@ export interface SystemHealthMessage extends WebSocketMessage {
 }
 
 /**
+ * Canary tick update event
+ */
+export interface CanaryTickUpdateMessage extends WebSocketMessage {
+  event_type: WebSocketEventType.CANARY_TICK_UPDATE;
+  gateway_id: string;
+  contract_symbol: string;
+  tick_count_1min: number;
+  last_tick_time: string;
+  status: 'ACTIVE' | 'STALE' | 'INACTIVE';
+  threshold_seconds: number;
+}
+
+/**
  * Ping message for connection health check
  */
 export interface PingMessage extends WebSocketMessage {
@@ -159,6 +175,7 @@ export type AnyWebSocketMessage =
   | GatewayControlActionMessage
   | SystemLogMessage
   | SystemHealthMessage
+  | CanaryTickUpdateMessage
   | PingMessage
   | PongMessage
   | ErrorMessage
@@ -211,6 +228,10 @@ export const isSystemHealth = (msg: AnyWebSocketMessage): msg is SystemHealthMes
   return msg.event_type === WebSocketEventType.SYSTEM_HEALTH;
 };
 
+export const isCanaryTickUpdate = (msg: AnyWebSocketMessage): msg is CanaryTickUpdateMessage => {
+  return msg.event_type === WebSocketEventType.CANARY_TICK_UPDATE;
+};
+
 export const isPing = (msg: AnyWebSocketMessage): msg is PingMessage => {
   return msg.type === 'ping';
 };
@@ -246,6 +267,17 @@ export interface CanaryMonitorData {
   tick_count_1min: number;
   status: 'ACTIVE' | 'STALE' | 'INACTIVE';
   threshold_seconds: number;
+}
+
+/**
+ * Canary contract configuration from environment
+ */
+export interface CanaryContractConfig {
+  ctp_contracts: string[];
+  ctp_primary: string;
+  sopt_contracts: string[];
+  sopt_primary: string;
+  heartbeat_timeout_seconds: number;
 }
 
 /**

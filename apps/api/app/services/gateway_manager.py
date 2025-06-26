@@ -35,7 +35,7 @@ except ImportError as e:
     
     class MockTickData:
         """Mock tick data for testing"""
-        def __init__(self, symbol="rb2501.SHFE"):
+        def __init__(self, symbol="rb2510.SHFE"):
             self.symbol = symbol
             self.datetime = datetime.now(timezone.utc)
             self.last_price = round(3800 + random.uniform(-50, 50), 2)
@@ -542,28 +542,61 @@ class GatewayManager:
                 gateway_type = account['gateway_type'].lower()
                 if gateway_type == 'ctp':
                     # CTP canary contracts (futures)
-                    canary_symbols = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
+                    canary_symbols = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,au2512").split(",")
                     test_contracts = [f"{symbol.strip()}.SHFE" for symbol in canary_symbols]
                 elif gateway_type == 'sopt':
                     # SOPT canary contracts (options and ETFs)
-                    canary_symbols = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
+                    canary_symbols = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,au2512").split(",")
                     test_contracts = [f"{symbol.strip()}.SHFE" for symbol in canary_symbols]
             
             # Fallback to default contracts if no account found
             if not test_contracts:
                 test_contracts = [
                     "rb2601.SHFE",  # Steel rebar futures June 2025 (canary)
-                    "rb2505.SHFE",  # Steel rebar futures May 2025 (canary)
+                    "au2512.SHFE",  # Steel rebar futures May 2025 (canary)
                 ]
             
             for contract in test_contracts:
-                # Note: Actual subscription method depends on vnpy version
-                # This is a simplified version for the MVP
-                self.logger.info(
-                    "Subscribed to contract",
-                    symbol=contract,
-                    account_id=account_id
-                )
+                try:
+                    # Use vnpy's subscribe method to actually subscribe to tick data
+                    if hasattr(main_engine, 'subscribe'):
+                        # VNPy 3.x/4.x method with proper Exchange enum
+                        from vnpy.trader.object import SubscribeRequest
+                        from vnpy.trader.constant import Exchange
+                        
+                        # Parse symbol and exchange
+                        if '.' in contract:
+                            symbol, exchange_str = contract.split('.')
+                        else:
+                            symbol = contract
+                            exchange_str = 'SHFE'
+                        
+                        # Convert exchange string to Exchange enum
+                        try:
+                            exchange = Exchange(exchange_str)
+                        except ValueError:
+                            # Fallback to SHFE if exchange not recognized
+                            exchange = Exchange.SHFE
+                        
+                        req = SubscribeRequest(symbol=symbol, exchange=exchange)
+                        main_engine.subscribe(req, account_id)
+                    else:
+                        # Alternative method for different vnpy versions
+                        main_engine.gateway_map[f"{account['gateway_type']}_{account_id}"].subscribe(contract)
+                    
+                    self.logger.info(
+                        "Subscribed to canary contract",
+                        symbol=contract,
+                        account_id=account_id,
+                        gateway_type=account['gateway_type']
+                    )
+                except Exception as sub_error:
+                    self.logger.warning(
+                        "Contract subscription failed for specific contract",
+                        symbol=contract,
+                        account_id=account_id,
+                        error=str(sub_error)
+                    )
         except Exception as e:
             self.logger.error(
                 "Contract subscription failed",
@@ -585,7 +618,7 @@ class GatewayManager:
             self.last_tick_time = current_time
             
             # Update health monitor with canary tick data
-            self._update_health_monitor_tick(account_id, symbol, current_time)
+            self._update_health_monitor_tick(account_id, symbol, current_time, tick_data)
             
             # Calculate processing latency
             latency_ms = None
@@ -1140,7 +1173,7 @@ class GatewayManager:
         if self._is_gateway_available(gateway_id):
             return [
                 "rb2601.SHFE",  # Steel rebar futures June 2025 (canary)
-                "rb2505.SHFE",  # Steel rebar futures May 2025 (canary)
+                "au2512.SHFE",  # Steel rebar futures May 2025 (canary)
             ]
         return []
     
@@ -1166,7 +1199,7 @@ class GatewayManager:
             else:
                 return "UNHEALTHY"
     
-    def _update_health_monitor_tick(self, account_id: str, symbol: str, timestamp: datetime):
+    def _update_health_monitor_tick(self, account_id: str, symbol: str, timestamp: datetime, tick_data=None):
         """
         Update health monitor with tick data for canary contract monitoring.
         
@@ -1174,6 +1207,7 @@ class GatewayManager:
             account_id: Gateway account identifier
             symbol: Contract symbol
             timestamp: Tick timestamp
+            tick_data: Optional tick data for validation
         """
         try:
             # Import here to avoid circular imports
@@ -1185,17 +1219,15 @@ class GatewayManager:
             if account:
                 gateway_type = account['gateway_type']
                 if gateway_type == 'ctp':
-                    canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
+                    canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,au2512").split(",")
                 elif gateway_type == 'sopt':
-                    canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
+                    canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,au2512").split(",")
             
             # Extract base symbol (remove exchange suffix if present)
             base_symbol = symbol.split('.')[0] if '.' in symbol else symbol
             
             # Update health monitor if this is a canary contract
             if base_symbol in canary_contracts:
-                # Pass the original tick_data for validation
-                from app.services.health_monitor import health_monitor
                 health_monitor.update_canary_tick(account_id, base_symbol, timestamp, tick_data)
                 
         except Exception as e:

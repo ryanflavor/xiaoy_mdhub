@@ -335,6 +335,33 @@ class WebSocketManager:
         # Broadcast to clients
         await self._rate_limited_broadcast(log_event)
     
+    async def publish_canary_tick_update(self, gateway_id: str, contract_symbol: str, tick_count_1min: int, 
+                                       last_tick_time: str, status: str, threshold_seconds: int) -> None:
+        """
+        Publish a canary tick update event to WebSocket clients.
+        
+        Args:
+            gateway_id: Gateway identifier
+            contract_symbol: Contract symbol
+            tick_count_1min: Tick count in last minute
+            last_tick_time: Last tick timestamp
+            status: Canary status (ACTIVE, STALE, INACTIVE)
+            threshold_seconds: Heartbeat threshold in seconds
+        """
+        canary_event = {
+            "event_type": "canary_tick_update",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "gateway_id": gateway_id,
+            "contract_symbol": contract_symbol,
+            "tick_count_1min": tick_count_1min,
+            "last_tick_time": last_tick_time,
+            "status": status,
+            "threshold_seconds": threshold_seconds
+        }
+        
+        # Broadcast to clients (no rate limiting for canary updates - they're important)
+        await self.broadcast(canary_event)
+    
     async def _rate_limited_broadcast(self, event: Dict[str, Any]) -> None:
         """Apply rate limiting to event broadcasts."""
         current_time = datetime.now(timezone.utc)

@@ -23,9 +23,9 @@ class TestHealthMonitor:
             'HEALTH_CHECK_INTERVAL_SECONDS': '1',
             'HEALTH_CHECK_TIMEOUT_SECONDS': '5',
             'CANARY_HEARTBEAT_TIMEOUT_SECONDS': '10',
-            'CTP_CANARY_CONTRACTS': 'rb2601,rb2505',
+            'CTP_CANARY_CONTRACTS': 'rb2601,au2512',
             'CTP_CANARY_PRIMARY': 'rb2601',
-            'SOPT_CANARY_CONTRACTS': 'rb2601,rb2505',
+            'SOPT_CANARY_CONTRACTS': 'rb2601,au2512',
             'SOPT_CANARY_PRIMARY': 'rb2601',
             'HEALTH_CHECK_FALLBACK_MODE': 'connection_only'
         }):

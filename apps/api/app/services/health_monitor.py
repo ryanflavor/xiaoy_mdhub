@@ -38,9 +38,9 @@ class HealthMonitor:
         self.health_check_timeout = 10
         self.canary_heartbeat_timeout = 60
         self.fallback_mode = "connection_only"
-        self.ctp_canary_contracts = ["rb2601", "rb2505"]
+        self.ctp_canary_contracts = ["rb2601", "au2512"]
         self.ctp_canary_primary = "rb2601"
-        self.sopt_canary_contracts = ["rb2601", "rb2505"] 
+        self.sopt_canary_contracts = ["rb2601", "au2512"] 
         self.sopt_canary_primary = "rb2601"
         
         # Health status tracking
@@ -69,9 +69,9 @@ class HealthMonitor:
         self.fallback_mode = os.getenv("HEALTH_CHECK_FALLBACK_MODE", "connection_only")
         
         # Canary contract configuration
-        self.ctp_canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
+        self.ctp_canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,au2512").split(",")
         self.ctp_canary_primary = os.getenv("CTP_CANARY_PRIMARY", "rb2601")
-        self.sopt_canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,rb2505").split(",")
+        self.sopt_canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,au2512").split(",")
         self.sopt_canary_primary = os.getenv("SOPT_CANARY_PRIMARY", "rb2601")
         
     async def start(self) -> bool:
@@ -584,13 +584,51 @@ class HealthMonitor:
         if gateway_id in self.gateway_health:
             self.gateway_health[gateway_id].metrics.last_heartbeat = timestamp
             
+        # Determine canary status
+        tick_count = len(self.canary_tick_counts[key])
+        time_since_last = (datetime.now(timezone.utc) - timestamp).total_seconds()
+        
+        if time_since_last <= self.canary_heartbeat_timeout:
+            status = "ACTIVE"
+        elif time_since_last <= self.canary_heartbeat_timeout * 2:
+            status = "STALE"
+        else:
+            status = "INACTIVE"
+            
         # Log successful tick validation
         self.logger.debug(
             "Validated canary tick",
             gateway_id=gateway_id,
             contract=contract,
-            tick_count_1min=len(self.canary_tick_counts[key])
+            tick_count_1min=tick_count,
+            status=status
         )
+        
+        # Publish WebSocket update (fire and forget)
+        try:
+            from app.services.websocket_manager import WebSocketManager
+            ws_manager = WebSocketManager.get_instance()
+            
+            # Create asyncio task to avoid blocking
+            import asyncio
+            asyncio.create_task(
+                ws_manager.publish_canary_tick_update(
+                    gateway_id=gateway_id,
+                    contract_symbol=contract,
+                    tick_count_1min=tick_count,
+                    last_tick_time=timestamp.isoformat(),
+                    status=status,
+                    threshold_seconds=self.canary_heartbeat_timeout
+                )
+            )
+        except Exception as e:
+            # Don't let WebSocket errors interrupt tick processing
+            self.logger.debug(
+                "Failed to publish canary WebSocket update",
+                gateway_id=gateway_id,
+                contract=contract,
+                error=str(e)
+            )
     
     async def _log_resource_usage(self):
         """Log resource usage periodically."""
@@ -779,14 +817,15 @@ class HealthMonitor:
                 if not self._validate_gateway_specific_tick(gateway_id, contract, tick_data):
                     return False
             
-            # Rate limiting check - prevent spam
+            # Rate limiting check - prevent spam (only for newer timestamps)
             key = f"{gateway_id}:{contract}"
             if key in self.canary_tick_timestamps:
                 last_tick_time = self.canary_tick_timestamps[key]
                 time_since_last = (timestamp - last_tick_time).total_seconds()
                 
-                # Minimum 100ms between ticks to prevent spam
-                if time_since_last < 0.1:
+                # Only apply rate limiting for newer timestamps to prevent spam
+                # Allow older timestamps for testing/replay scenarios
+                if time_since_last > 0 and time_since_last < 0.1:
                     self.logger.debug(
                         "Tick rate too high - throttling",
                         gateway_id=gateway_id,

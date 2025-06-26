@@ -36,6 +36,15 @@ class GatewayManagerStatus(BaseModel):
     accounts: List[AccountStatus]
 
 
+class CanaryContractConfig(BaseModel):
+    """Canary contract configuration model."""
+    ctp_contracts: List[str]
+    ctp_primary: str
+    sopt_contracts: List[str] 
+    sopt_primary: str
+    heartbeat_timeout_seconds: int
+
+
 class HealthResponse(BaseModel):
     """Health check response model."""
     status: str
@@ -48,6 +57,7 @@ class HealthResponse(BaseModel):
     quote_aggregation_engine: Optional[Dict[str, Any]] = None
     gateway_recovery_service: Optional[Dict[str, Any]] = None
     websocket_connections: Optional[Dict[str, Any]] = None
+    canary_config: Optional[CanaryContractConfig] = None
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -113,6 +123,23 @@ async def health_check() -> HealthResponse:
         # WebSocket status not available, continue without it
         pass
     
+    # Get canary contract configuration from environment
+    canary_config = None
+    try:
+        ctp_contracts_str = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,AU2512")
+        sopt_contracts_str = os.getenv("SOPT_CANARY_CONTRACTS", "510050,159915")
+        
+        canary_config = CanaryContractConfig(
+            ctp_contracts=ctp_contracts_str.split(","),
+            ctp_primary=os.getenv("CTP_CANARY_PRIMARY", "rb2601"),
+            sopt_contracts=sopt_contracts_str.split(","),
+            sopt_primary=os.getenv("SOPT_CANARY_PRIMARY", "510050"), 
+            heartbeat_timeout_seconds=int(os.getenv("CANARY_HEARTBEAT_TIMEOUT_SECONDS", "60"))
+        )
+    except Exception as e:
+        # Canary config not available, continue without it
+        pass
+    
     return HealthResponse(
         status="ok",
         timestamp=datetime.now(timezone.utc).isoformat(),
@@ -123,7 +150,8 @@ async def health_check() -> HealthResponse:
         health_monitor=health_monitor_status,
         quote_aggregation_engine=quote_aggregation_status,
         gateway_recovery_service=gateway_recovery_status,
-        websocket_connections=websocket_status
+        websocket_connections=websocket_status,
+        canary_config=canary_config
     )
 
 
@@ -141,3 +169,45 @@ async def get_logs():
         return {"logs": logs, "total": len(logs)}
     except Exception as e:
         return {"logs": [], "total": 0, "error": str(e)}
+
+
+@router.post("/test-canary")
+async def test_canary():
+    """
+    Manually trigger canary tick data for testing.
+    
+    Returns:
+        Status of the test canary tick injection
+    """
+    try:
+        current_time = datetime.now(timezone.utc)
+        
+        # Simulate tick data for canary contracts
+        test_results = []
+        canary_contracts = ["rb2501", "au2506"]
+        
+        for contract in canary_contracts:
+            health_monitor.update_canary_tick(
+                gateway_id="test-gateway",
+                contract=contract, 
+                timestamp=current_time,
+                tick_data=None
+            )
+            test_results.append({
+                "contract": contract,
+                "timestamp": current_time.isoformat(),
+                "status": "injected"
+            })
+        
+        return {
+            "status": "success",
+            "message": "Test canary tick data injected",
+            "test_results": test_results,
+            "timestamp": current_time.isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "error", 
+            "message": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
