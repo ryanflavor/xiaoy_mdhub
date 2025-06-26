@@ -5,6 +5,7 @@ import { useDashboardData } from '@/hooks/use-dashboard-data';
 import { SystemHealthSummary } from '@/components/dashboard/system-health-summary';
 import { GatewayStatusCard } from '@/components/dashboard/gateway-status-card';
 import { CanaryMonitor } from '@/components/dashboard/canary-monitor';
+import { TradingTimeStatus } from '@/components/TradingTimeStatus';
 import { WebSocketState, GatewayControlAction } from '@xiaoy-mdhub/shared-types';
 import { gatewayService } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
@@ -84,21 +85,93 @@ function DashboardContent() {
         variant: "default",
       });
       
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    } catch (error: any) {
+      let errorMessage = 'Unknown error occurred';
+      let errorTitle = "Gateway Control Failed";
+      
+      // Debug logging - remove after fixing
+      console.log('Full error object:', error);
+      console.log('Error status:', error.status);
+      console.log('Error details:', error.details);
+      console.log('Error response:', error.response);
+      
+      // Handle different error types
+      // Check for custom ApiError format first
+      if (error.status === 423) {
+        // Trading time restriction
+        const detail = error.details?.detail || error.details;
+        if (detail && detail.error === 'TRADING_TIME_RESTRICTED') {
+          errorTitle = "当前不在交易时间";
+          errorMessage = detail.user_message || "当前不在交易时间，请等待下次交易时段开始";
+          
+          const nextSession = detail.next_session;
+          if (nextSession?.start_time) {
+            const nextSessionTime = new Date(nextSession.start_time).toLocaleString('zh-CN', { 
+              month: '2-digit', 
+              day: '2-digit', 
+              hour: '2-digit', 
+              minute: '2-digit',
+              hour12: false 
+            });
+            errorMessage += `\n下次交易时段: ${nextSession.name} ${nextSessionTime}`;
+          }
+        }
+      } else if (error.status === 409) {
+        // Already running
+        errorTitle = "Gateway Already Running";
+        errorMessage = error.details?.detail || error.message || 'Gateway is already running';
+      } else if (error.status === 404) {
+        // Account not found
+        errorTitle = "Account Not Found";
+        errorMessage = error.details?.detail || error.message || 'Account configuration not found';
+      } else if (error.response && error.response.status === 423) {
+        // Fallback for Axios-style error (backward compatibility)
+        const detail = error.response.data?.detail;
+        if (detail && detail.error === 'TRADING_TIME_RESTRICTED') {
+          errorTitle = "当前不在交易时间";
+          errorMessage = detail.user_message || "当前不在交易时间，请等待下次交易时段开始";
+          
+          const nextSession = detail.next_session;
+          if (nextSession?.start_time) {
+            const nextSessionTime = new Date(nextSession.start_time).toLocaleString('zh-CN', { 
+              month: '2-digit', 
+              day: '2-digit', 
+              hour: '2-digit', 
+              minute: '2-digit',
+              hour12: false 
+            });
+            errorMessage += `\n下次交易时段: ${nextSession.name} ${nextSessionTime}`;
+          }
+        }
+      } else if (error.response && error.response.status === 409) {
+        // Already running
+        errorTitle = "Gateway Already Running";
+        errorMessage = error.response.data?.detail || 'Gateway is already running';
+      } else if (error.response && error.response.status === 404) {
+        // Account not found
+        errorTitle = "Account Not Found";
+        errorMessage = error.response.data?.detail || 'Account configuration not found';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      // Debug: Log final error message
+      console.log('Final error title:', errorTitle);
+      console.log('Final error message:', errorMessage);
       
       // Show error toast
       toast({
-        title: "Gateway Control Failed",
+        title: errorTitle,
         description: errorMessage,
         variant: "destructive",
       });
       
       console.error('Gateway control action failed:', error);
-      // Re-throw to allow component to handle error display
-      throw error;
+      
+      // Refresh data to ensure UI reflects actual state
+      refreshData();
     }
-  }, [toast]);
+  }, [toast, refreshData]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -128,11 +201,18 @@ function DashboardContent() {
         </Card>
       )}
 
-      {/* System Health Summary */}
-      <SystemHealthSummary 
-        systemHealth={data.system_health}
-        isConnected={isConnected}
-      />
+      {/* Trading Time Status and System Health */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1">
+          <TradingTimeStatus showDetails={false} />
+        </div>
+        <div className="lg:col-span-2">
+          <SystemHealthSummary 
+            systemHealth={data.system_health}
+            isConnected={isConnected}
+          />
+        </div>
+      </div>
 
       {/* Gateway Status Grid */}
       <div>

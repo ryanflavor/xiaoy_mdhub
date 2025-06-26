@@ -127,6 +127,7 @@ except ImportError as e:
 
 from app.services.zmq_publisher import zmq_publisher
 from app.services.database_service import database_service
+from app.services.trading_time_manager import trading_time_manager
 
 
 class GatewayManager:
@@ -529,18 +530,25 @@ class GatewayManager:
                 gateway_type = account['gateway_type'].lower()
                 if gateway_type == 'ctp':
                     # CTP canary contracts (futures)
-                    canary_symbols = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,au2512").split(",")
+                    canary_symbols = os.getenv("CTP_CANARY_CONTRACTS", "rb2510,au2512").split(",")
                     test_contracts = [f"{symbol.strip()}.SHFE" for symbol in canary_symbols]
                 elif gateway_type == 'sopt':
                     # SOPT canary contracts (options and ETFs)
-                    canary_symbols = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,au2512").split(",")
-                    test_contracts = [f"{symbol.strip()}.SHFE" for symbol in canary_symbols]
+                    canary_symbols = os.getenv("SOPT_CANARY_CONTRACTS", "510050,159915").split(",")
+                    # For SOPT, use appropriate exchanges
+                    test_contracts = []
+                    for symbol in canary_symbols:
+                        symbol = symbol.strip()
+                        if symbol.startswith('51') or symbol.startswith('15'):  # ETF
+                            test_contracts.append(f"{symbol}.SSE")
+                        else:
+                            test_contracts.append(f"{symbol}.SZSE")
             
             # Fallback to default contracts if no account found
             if not test_contracts:
                 test_contracts = [
-                    "rb2601.SHFE",  # Steel rebar futures June 2025 (canary)
-                    "au2512.SHFE",  # Steel rebar futures May 2025 (canary)
+                    "rb2510.SHFE",  # Steel rebar futures October 2025 (canary)
+                    "au2512.SHFE",  # Gold futures December 2025 (canary)
                 ]
             
             for contract in test_contracts:
@@ -848,6 +856,17 @@ class GatewayManager:
             return
             
         try:
+            # Check trading time before connection
+            if not trading_time_manager.should_connect_gateway("CTP"):
+                self.logger.warning(
+                    "CTP Gateway connection skipped - outside trading hours",
+                    account_id=account_id,
+                    current_time=datetime.now(timezone.utc).isoformat(),
+                    force_connection=trading_time_manager.force_gateway_connection,
+                    enable_check=trading_time_manager.enable_trading_time_check
+                )
+                return
+            
             self.connection_attempts[account_id] = self.connection_attempts.get(account_id, 0) + 1
             self.connection_start_times[account_id] = datetime.now(timezone.utc)
             
@@ -865,7 +884,8 @@ class GatewayManager:
                 "CTP Gateway connection initiated",
                 account_id=account_id,
                 gateway_name=gateway_name,
-                settings_keys=list(connect_setting.keys())
+                settings_keys=list(connect_setting.keys()),
+                trading_time_check_passed=True
             )
         except Exception as e:
             self.logger.error(
@@ -924,6 +944,17 @@ class GatewayManager:
             return
             
         try:
+            # Check trading time before connection
+            if not trading_time_manager.should_connect_gateway("SOPT"):
+                self.logger.warning(
+                    "SOPT Gateway connection skipped - outside trading hours",
+                    account_id=account_id,
+                    current_time=datetime.now(timezone.utc).isoformat(),
+                    force_connection=trading_time_manager.force_gateway_connection,
+                    enable_check=trading_time_manager.enable_trading_time_check
+                )
+                return
+            
             self.connection_attempts[account_id] = self.connection_attempts.get(account_id, 0) + 1
             self.connection_start_times[account_id] = datetime.now(timezone.utc)
             
@@ -938,7 +969,8 @@ class GatewayManager:
                 "SOPT Gateway connection initiated",
                 account_id=account_id,
                 gateway_name=gateway_name,
-                settings_keys=list(sopt_settings.keys())
+                settings_keys=list(sopt_settings.keys()),
+                trading_time_check_passed=True
             )
         except Exception as e:
             self.logger.error(
@@ -1416,7 +1448,7 @@ class GatewayManager:
     
     # Interactive Control Methods for API
     
-    async def start_gateway(self, gateway_id: str) -> bool:
+    async def start_gateway(self, gateway_id: str) -> dict:
         """
         Start a gateway through API control interface.
         
@@ -1424,7 +1456,7 @@ class GatewayManager:
             gateway_id: Unique identifier of the gateway/account to start
             
         Returns:
-            bool: True if start successful, False otherwise
+            dict: Result with success status and detailed message
         """
         try:
             self.logger.info(f"API: Starting gateway {gateway_id}")
@@ -1432,27 +1464,63 @@ class GatewayManager:
             # Check if gateway is already running
             if self.gateway_connections.get(gateway_id, False):
                 self.logger.warning(f"Gateway already running: {gateway_id}")
-                return False
+                return {
+                    "success": False,
+                    "error": "ALREADY_RUNNING",
+                    "message": f"Gateway {gateway_id} is already running"
+                }
             
             # Find the account configuration
             account = next((acc for acc in self.active_accounts if acc['id'] == gateway_id), None)
             if not account:
                 self.logger.error(f"Account not found for gateway start: {gateway_id}")
-                return False
+                return {
+                    "success": False,
+                    "error": "ACCOUNT_NOT_FOUND",
+                    "message": f"Account configuration not found for gateway {gateway_id}"
+                }
+            
+            # Check trading time before attempting to start
+            gateway_type = account['gateway_type']
+            if not trading_time_manager.should_connect_gateway(gateway_type):
+                trading_status = trading_time_manager.get_trading_status()
+                self.logger.warning(f"API: Gateway start blocked by trading time check: {gateway_id}")
+                return {
+                    "success": False,
+                    "error": "TRADING_TIME_RESTRICTED",
+                    "message": f"Cannot start {gateway_type} gateway outside trading hours",
+                    "trading_status": {
+                        "is_trading_time": trading_status["is_trading_time"],
+                        "status": trading_status["status"],
+                        "next_session_start": trading_status["next_session_start"],
+                        "next_session_name": trading_status["next_session_name"]
+                    }
+                }
             
             # Initialize and start the gateway
             success = await self._initialize_account_gateway(account)
             
             if success:
                 self.logger.info(f"API: Gateway started successfully: {gateway_id}")
+                return {
+                    "success": True,
+                    "message": f"Gateway {gateway_id} started successfully"
+                }
             else:
                 self.logger.error(f"API: Gateway start failed: {gateway_id}")
-            
-            return success
+                return {
+                    "success": False,
+                    "error": "INITIALIZATION_FAILED",
+                    "message": f"Failed to initialize gateway {gateway_id}"
+                }
             
         except Exception as e:
             self.logger.error(f"API: Gateway start error {gateway_id}: {str(e)}")
-            return False
+            return {
+                "success": False,
+                "error": "INTERNAL_ERROR",
+                "message": f"Internal error during gateway start: {str(e)}"
+            }
     
     async def stop_gateway(self, gateway_id: str) -> bool:
         """

@@ -10,3 +10,6 @@ export * from "./common";
 
 // WebSocket types
 export * from "./websocket";
+
+// Trading time types
+export * from "./trading";

@@ -535,11 +535,44 @@ async def start_gateway(
         # Call gateway manager to start the gateway
         result = await gw_manager.start_gateway(account_id)
         
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to start gateway for account '{account_id}'. Gateway may already be running or account not found."
-            )
+        if not result["success"]:
+            # Handle different error types
+            error_code = result.get("error", "UNKNOWN_ERROR")
+            
+            if error_code == "TRADING_TIME_RESTRICTED":
+                # Special handling for trading time restrictions
+                trading_status = result.get("trading_status", {})
+                detail = {
+                    "error": "TRADING_TIME_RESTRICTED",
+                    "message": result["message"],
+                    "trading_status": trading_status,
+                    "user_message": f"Cannot start {account_id} gateway outside trading hours",
+                    "recommendation": f"Please wait until the next trading session starts",
+                    "next_session": {
+                        "name": trading_status.get("next_session_name"),
+                        "start_time": trading_status.get("next_session_start"),
+                        "time_until": None  # Frontend will calculate this
+                    } if trading_status.get("next_session_start") else None
+                }
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail=detail
+                )
+            elif error_code == "ALREADY_RUNNING":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=result["message"]
+                )
+            elif error_code == "ACCOUNT_NOT_FOUND":
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=result["message"]
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=result["message"]
+                )
         
         # Broadcast control action via WebSocket
         ws_manager = WebSocketManager.get_instance()
@@ -551,11 +584,11 @@ async def start_gateway(
         )
         
         timestamp = datetime.now(timezone.utc).isoformat()
-        logger.info("Gateway started successfully", )
+        logger.info("Gateway started successfully")
         
         return GatewayControlResponse(
             success=True,
-            message="Gateway started successfully",
+            message=result["message"],
             gateway_id=account_id,
             action="start",
             timestamp=timestamp

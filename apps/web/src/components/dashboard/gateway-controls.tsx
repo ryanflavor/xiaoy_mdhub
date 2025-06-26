@@ -140,6 +140,9 @@ export function GatewayControls({ gateway, onAction }: GatewayControlsProps) {
       setTimeout(() => {
         setButtonStates(prev => ({ ...prev, [action]: 'idle' }));
       }, 5000);
+      
+      // Re-throw the error so the parent component can handle it
+      throw error;
     }
   };
 

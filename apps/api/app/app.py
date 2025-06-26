@@ -19,6 +19,7 @@ import structlog
 from app.api.routes import health
 from app.api.routes import websocket
 from app.routes import accounts
+from app.routes import trading_time
 from app.services.gateway_manager import gateway_manager
 from app.services.health_monitor import health_monitor
 from app.services.quote_aggregation_engine import quote_aggregation_engine
@@ -309,6 +310,7 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(health.router, tags=["health"])
     app.include_router(accounts.router, tags=["accounts"])
+    app.include_router(trading_time.router, tags=["trading-time"])
     app.include_router(websocket.router, tags=["websocket"])
     
     return app
