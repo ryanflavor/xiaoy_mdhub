@@ -14,6 +14,7 @@ import { Play, Square, RotateCcw, Loader2, Check, X } from 'lucide-react';
 interface GatewayControlsProps {
   gateway: GatewayStatus;
   onAction: (action: GatewayControlAction, gatewayId: string) => Promise<void>;
+  compact?: boolean;
 }
 
 interface ControlButtonProps {
@@ -25,6 +26,7 @@ interface ControlButtonProps {
   variant?: 'default' | 'destructive' | 'outline' | 'secondary';
   tooltip?: string;
   onClick: () => void;
+  compact?: boolean;
 }
 
 function ControlButton({
@@ -35,7 +37,8 @@ function ControlButton({
   state,
   variant = 'outline',
   tooltip,
-  onClick
+  onClick,
+  compact = false
 }: ControlButtonProps) {
   // Determine visual feedback based on state
   const getIcon = () => {
@@ -60,15 +63,15 @@ function ControlButton({
   const button = (
     <Button
       variant={getButtonVariant()}
-      size="sm"
+      size={compact ? "sm" : "sm"}
       disabled={disabled || state === 'loading'}
       onClick={onClick}
-      className={`h-8 px-2 text-xs transition-all duration-200 ${
+      className={`${compact ? 'h-6 px-2 min-w-[24px]' : 'h-8 px-2'} text-xs transition-all duration-200 ${
         state === 'loading' ? 'opacity-75' : ''
       } ${state === 'success' ? 'bg-green-600 hover:bg-green-700' : ''}`}
     >
       {getIcon()}
-      <span className="ml-1">{label}</span>
+      {!compact && <span className="ml-1">{label}</span>}
     </Button>
   );
 
@@ -90,7 +93,7 @@ function ControlButton({
   return button;
 }
 
-export function GatewayControls({ gateway, onAction }: GatewayControlsProps) {
+export function GatewayControls({ gateway, onAction, compact = false }: GatewayControlsProps) {
   const [buttonStates, setButtonStates] = useState<Record<GatewayControlAction, ButtonState>>({
     start: 'idle',
     stop: 'idle',
@@ -157,38 +160,41 @@ export function GatewayControls({ gateway, onAction }: GatewayControlsProps) {
 
   return (
     <>
-      <div className="flex gap-1">
+      <div className={`flex ${compact ? 'gap-1' : 'gap-1'}`}>
         <ControlButton
           action="start"
-          icon={<Play className="h-3 w-3" />}
+          icon={<Play className={compact ? "h-3 w-3" : "h-3 w-3"} />}
           label="Start"
           disabled={!canStart}
           state={buttonStates.start}
           variant="outline"
           tooltip={!canStart ? "Gateway is already running or in recovery mode" : undefined}
           onClick={() => handleButtonClick('start')}
+          compact={compact}
         />
         
         <ControlButton
           action="stop"
-          icon={<Square className="h-3 w-3" />}
+          icon={<Square className={compact ? "h-3 w-3" : "h-3 w-3"} />}
           label="Stop"
           disabled={!canStop}
           state={buttonStates.stop}
           variant="destructive"
           tooltip={!canStop ? "Gateway is already stopped or in recovery mode" : undefined}
           onClick={() => handleButtonClick('stop')}
+          compact={compact}
         />
         
         <ControlButton
           action="restart"
-          icon={<RotateCcw className="h-3 w-3" />}
+          icon={<RotateCcw className={compact ? "h-3 w-3" : "h-3 w-3"} />}
           label="Restart"
           disabled={!canRestart}
           state={buttonStates.restart}
           variant="secondary"
           tooltip={!canRestart ? "Gateway is in recovery mode" : undefined}
           onClick={() => handleButtonClick('restart')}
+          compact={compact}
         />
       </div>
 

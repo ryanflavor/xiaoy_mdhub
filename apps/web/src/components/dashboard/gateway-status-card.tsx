@@ -64,79 +64,62 @@ export function GatewayStatusCard({ gateway, onAction }: GatewayStatusCardProps)
   });
 
   return (
-    <Card className="p-4 hover:shadow-md transition-shadow">
-      <div className="space-y-3">
+    <Card className="p-3 hover:shadow-md transition-shadow h-full">
+      <div className="space-y-2 h-full flex flex-col">
         {/* Header */}
         <div className="flex items-start justify-between">
-          <div>
-            <h3 className="font-semibold text-sm truncate" title={gateway.gateway_id}>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-medium text-sm leading-tight break-words" title={gateway.gateway_id}>
               {gateway.gateway_id}
             </h3>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              {gateway.gateway_type}
-            </p>
+            <div className="flex items-center gap-1 mt-1 flex-wrap">
+              <Badge variant="outline" className="text-xs px-1 py-0">
+                {gateway.gateway_type}
+              </Badge>
+              <Badge variant="outline" className="text-xs px-1 py-0">
+                P{gateway.priority}
+              </Badge>
+            </div>
           </div>
           <Badge
             variant={getStatusBadgeVariant(gateway.current_status)}
-            className="text-xs"
+            className="text-xs px-2 py-1 ml-2 flex-shrink-0"
           >
-            {gateway.current_status}
+            {gateway.current_status === 'HEALTHY' ? '✓' : 
+             gateway.current_status === 'RECOVERING' ? '↻' : 
+             gateway.current_status === 'UNHEALTHY' ? '⚠' : '✕'}
           </Badge>
         </div>
 
-        {/* Status Details */}
-        <div className="space-y-2">
-          {/* Connection Status */}
+        {/* Status Indicator */}
+        <div className="flex items-center gap-2">
           {getConnectionIndicator(gateway.connection_status)}
-
-          {/* Priority */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Priority:</span>
-            <span className="font-medium">{gateway.priority}</span>
-          </div>
-
-          {/* Last Tick Time */}
-          {gateway.last_tick_time && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Last Tick:</span>
-              <span className="text-xs">
-                {formatDistanceToNow(new Date(gateway.last_tick_time), {
-                  addSuffix: true,
-                })}
-              </span>
-            </div>
-          )}
-
-          {/* Canary Status */}
           {gateway.canary_status && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Canary:</span>
-              <Badge 
-                variant={gateway.canary_status === 'ACTIVE' ? 'default' : 'secondary'}
-                className="text-xs"
-              >
-                {gateway.canary_status}
-              </Badge>
-            </div>
+            <Badge 
+              variant={gateway.canary_status === 'ACTIVE' ? 'default' : 'secondary'}
+              className="text-xs px-1 py-0"
+            >
+              🐤
+            </Badge>
           )}
         </div>
 
-        {/* Control Actions */}
-        <div className="pt-2 border-t border-border">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Actions:</span>
-            <GatewayControls 
-              gateway={gateway} 
-              onAction={onAction}
-            />
+        {/* Last Tick Time - compact */}
+        {gateway.last_tick_time && (
+          <div className="text-xs text-muted-foreground break-words">
+            {formatDistanceToNow(new Date(gateway.last_tick_time), {
+              addSuffix: true,
+            })}
           </div>
-        </div>
+        )}
 
-        {/* Footer */}
-        <div className="pt-2 border-t border-border">
-          <p className="text-xs text-muted-foreground">
-            Updated {lastUpdateFormatted}
-          </p>
+        {/* Control Actions - compact */}
+        <div className="pt-1 border-t border-border mt-auto">
+          <GatewayControls 
+            gateway={gateway} 
+            onAction={onAction}
+            compact={true}
+          />
         </div>
       </div>
     </Card>

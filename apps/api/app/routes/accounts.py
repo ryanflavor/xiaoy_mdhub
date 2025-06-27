@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, status, Depends, Body
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_serializer
 import structlog
 
 # Import timezone utilities
@@ -19,6 +19,7 @@ from ..services.database_service import database_service
 from ..models.market_data_account import MarketDataAccount
 from ..services.gateway_manager import gateway_manager
 from ..services.websocket_manager import WebSocketManager
+from ..services.account_validation_service import account_validation_service
 
 # Configure logging
 logger = structlog.get_logger(__name__)
@@ -34,10 +35,19 @@ router = APIRouter(
 )
 
 
-class AccountSettings(BaseModel):
-    """Pydantic model for account settings validation."""
+class ConnectSetting(BaseModel):
+    """Connection settings for trading gateways."""
+    # Common connection fields
+    交易服务器: Optional[str] = Field(None, description="Trading server address")
+    行情服务器: Optional[str] = Field(None, description="Market data server address")
+    用户名: Optional[str] = Field(None, description="Username for authentication")
+    密码: Optional[str] = Field(None, description="Password for authentication")
+    经纪商代码: Optional[str] = Field(None, description="Broker ID")
+    授权编码: Optional[str] = Field(None, description="Authorization code")
+    产品信息: Optional[str] = Field(None, description="Product information")
+    产品名称: Optional[str] = Field(None, description="Product name")
     
-    # CTP specific settings
+    # Legacy English field support for backward compatibility
     userID: Optional[str] = Field(None, description="User ID for CTP authentication")
     password: Optional[str] = Field(None, description="Password for CTP authentication")
     brokerID: Optional[str] = Field(None, description="Broker ID for CTP connection")
@@ -45,17 +55,64 @@ class AccountSettings(BaseModel):
     appID: Optional[str] = Field(None, description="Application ID for CTP")
     mdAddress: Optional[str] = Field(None, description="Market data server address for CTP")
     tdAddress: Optional[str] = Field(None, description="Trading server address for CTP")
-    
-    # SOPT specific settings
     username: Optional[str] = Field(None, description="Username for SOPT authentication")
     token: Optional[str] = Field(None, description="Token for SOPT authentication")
     serverAddress: Optional[str] = Field(None, description="Server address for SOPT connection")
-    
-    # Common settings
     timeout: Optional[int] = Field(None, ge=1, le=300, description="Connection timeout in seconds")
 
     class Config:
         extra = "allow"  # Allow additional fields for flexibility
+        
+    @model_serializer
+    def serialize_model(self) -> Dict[str, Any]:
+        """Custom serialization to exclude None values"""
+        data = {}
+        for field_name, field_value in self.__dict__.items():
+            if field_value is not None:
+                data[field_name] = field_value
+        return data
+
+
+class GatewayInfo(BaseModel):
+    """Gateway information."""
+    gateway_class: str = Field(..., description="Gateway class name (e.g., CtpGateway, SoptGateway)")
+    gateway_name: str = Field(..., description="Gateway name (e.g., CTP, SOPT)")
+
+
+class AccountSettings(BaseModel):
+    """Pydantic model for complete account settings validation."""
+    
+    # New unified account format
+    broker: Optional[str] = Field(None, description="Broker name")
+    connect_setting: Optional[ConnectSetting] = Field(None, description="Connection settings")
+    gateway: Optional[GatewayInfo] = Field(None, description="Gateway information")
+    market: Optional[str] = Field(None, description="Market type (e.g., 期货期权, 个股期权)")
+    name: Optional[str] = Field(None, description="Account name")
+    
+    # Legacy flat structure support for backward compatibility
+    userID: Optional[str] = Field(None, description="User ID for CTP authentication")
+    password: Optional[str] = Field(None, description="Password for CTP authentication")
+    brokerID: Optional[str] = Field(None, description="Broker ID for CTP connection")
+    authCode: Optional[str] = Field(None, description="Authentication code for CTP")
+    appID: Optional[str] = Field(None, description="Application ID for CTP")
+    mdAddress: Optional[str] = Field(None, description="Market data server address for CTP")
+    tdAddress: Optional[str] = Field(None, description="Trading server address for CTP")
+    username: Optional[str] = Field(None, description="Username for SOPT authentication")
+    token: Optional[str] = Field(None, description="Token for SOPT authentication")
+    serverAddress: Optional[str] = Field(None, description="Server address for SOPT connection")
+    timeout: Optional[int] = Field(None, ge=1, le=300, description="Connection timeout in seconds")
+
+    class Config:
+        extra = "allow"  # Allow additional fields for flexibility
+        
+    @model_serializer
+    def serialize_model(self) -> Dict[str, Any]:
+        """Custom serialization to exclude None values"""
+        data = {}
+        for field_name, field_value in self.__dict__.items():
+            if field_value is not None:
+                data[field_name] = field_value
+        return data
 
 
 class AccountRequest(BaseModel):
@@ -67,6 +124,9 @@ class AccountRequest(BaseModel):
     priority: int = Field(1, ge=1, le=100, description="Priority level (lower = higher priority)")
     is_enabled: bool = Field(True, description="Whether the account should be enabled")
     description: Optional[str] = Field(None, max_length=500, description="Optional description")
+    validate_connection: bool = Field(True, description="Whether to validate connection before creating account")
+    allow_non_trading_validation: bool = Field(False, description="Allow validation outside trading hours")
+    use_real_api_validation: bool = Field(False, description="Use real vnpy gateway API login validation instead of basic connectivity test")
     
     @field_validator('gateway_type')
     @classmethod
@@ -272,13 +332,16 @@ async def get_accounts(
                         },
                         "priority": 1,
                         "is_enabled": True,
-                        "description": "Primary CTP account"
+                        "description": "Primary CTP account",
+                        "validate_connection": True,
+                        "allow_non_trading_validation": False
                     }
                 }
             }
         },
-        400: {"description": "Validation error or invalid data"},
+        400: {"description": "Validation error, connection validation failed, or invalid data"},
         409: {"description": "Account with this ID already exists"},
+        423: {"description": "Validation locked due to non-trading hours"},
         503: {"description": "Database service unavailable"}
     }
 )
@@ -287,7 +350,7 @@ async def create_account(
     db_service = Depends(get_database_service)
 ) -> AccountResponse:
     """
-    Create a new market data account.
+    Create a new market data account with optional connection validation.
     
     Args:
         account_data: Account configuration including gateway type, settings, and metadata
@@ -296,13 +359,71 @@ async def create_account(
         Created account data with timestamps
         
     Raises:
-        HTTPException: For validation errors, duplicates, or database issues
+        HTTPException: For validation errors, duplicates, connection failures, or database issues
     """
     try:
-        logger.info("Creating new account", account_id=account_data.id, gateway_type=account_data.gateway_type)
+        logger.info("Creating new account", account_id=account_data.id, gateway_type=account_data.gateway_type, 
+                   validate_connection=account_data.validate_connection)
+        
+        # Perform connection validation if requested
+        if account_data.validate_connection:
+            logger.info("Validating account connection before creation", account_id=account_data.id)
+            
+            # Perform validation with enhanced settings
+            validation_result = await account_validation_service.validate_account(
+                account_id=account_data.id,
+                account_settings=account_data.settings.model_dump(),
+                gateway_type=account_data.gateway_type,
+                timeout_seconds=30,
+                allow_non_trading_validation=account_data.allow_non_trading_validation,
+                use_real_api_validation=account_data.use_real_api_validation
+            )
+            
+            # Handle validation failure
+            if not validation_result.success:
+                error_code = validation_result.details.get("error_code", "VALIDATION_FAILED")
+                
+                # Special handling for non-trading hours
+                if error_code == "NON_TRADING_HOURS" and not account_data.allow_non_trading_validation:
+                    raise HTTPException(
+                        status_code=status.HTTP_423_LOCKED,
+                        detail={
+                            "error": "NON_TRADING_HOURS",
+                            "message": validation_result.message,
+                            "trading_status": validation_result.details.get("trading_status"),
+                            "user_message": "Account validation is only available during trading hours",
+                            "recommendation": "Try again during trading hours or set 'allow_non_trading_validation' to true for basic connectivity testing",
+                            "details": validation_result.details
+                        }
+                    )
+                elif error_code == "NON_TRADING_HOURS" and account_data.allow_non_trading_validation:
+                    # Perform basic connectivity validation outside trading hours
+                    logger.info("Performing basic connectivity validation outside trading hours", account_id=account_data.id)
+                    # Continue with creation since user explicitly allowed non-trading validation
+                else:
+                    # Other validation failures
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "error": "VALIDATION_FAILED",
+                            "message": validation_result.message,
+                            "validation_details": validation_result.details,
+                            "user_message": f"Account validation failed: {validation_result.message}",
+                            "recommendation": "Please check your account settings and try again"
+                        }
+                    )
+            
+            logger.info("Account validation successful", account_id=account_data.id, 
+                       validation_message=validation_result.message)
+        else:
+            logger.info("Skipping connection validation as requested", account_id=account_data.id)
         
         # Convert Pydantic model to dict for database service
         account_dict = account_data.model_dump()
+        # Remove validation-specific fields that shouldn't be stored
+        account_dict.pop('validate_connection', None)
+        account_dict.pop('allow_non_trading_validation', None)
+        account_dict.pop('use_real_api_validation', None)
         
         # Create account using database service
         created_account = await db_service.create_account(account_dict)
@@ -316,6 +437,9 @@ async def create_account(
         logger.info("Account created successfully", account_id=created_account.id)
         return account_to_response(created_account)
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (they're already properly formatted)
+        raise
     except ValueError as e:
         # Handle validation errors and duplicates
         error_msg = str(e)
@@ -458,26 +582,26 @@ async def delete_account(
         HTTPException: For not found or database issues
     """
     try:
-        logger.info("Deleting account", )
+        logger.info("Deleting account", account_id=account_id)
         
         # Delete account using database service
         deleted = await db_service.delete_account(account_id)
         
         if not deleted:
-            logger.warning("Account not found for deletion", )
+            logger.warning("Account not found for deletion", account_id=account_id)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Account with ID '{account_id}' not found"
             )
         
-        logger.info("Account deleted successfully", )
+        logger.info("Account deleted successfully", account_id=account_id)
         return None  # FastAPI will return 204 No Content
         
     except HTTPException:
         # Re-raise HTTP exceptions (they're already properly formatted)
         raise
     except Exception as e:
-        logger.error("Error deleting account",  error=str(e))
+        logger.error("Error deleting account", account_id=account_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete account: {str(e)}"
@@ -812,5 +936,114 @@ async def resubscribe_canary_contracts():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to resubscribe canary contracts: {str(e)}"
+        )
+
+
+class AccountValidationRequest(BaseModel):
+    """Request model for account validation."""
+    
+    account_id: str = Field(..., description="Account identifier for validation")
+    gateway_type: str = Field(..., description="Gateway type (ctp or sopt)")
+    settings: AccountSettings = Field(..., description="Account settings to validate")
+    timeout_seconds: int = Field(30, ge=5, le=60, description="Validation timeout in seconds")
+    allow_non_trading_validation: bool = Field(False, description="Allow validation outside trading hours")
+    use_real_api_validation: bool = Field(False, description="Use real API validation instead of basic connectivity")
+    
+    @field_validator('gateway_type')
+    @classmethod
+    def validate_gateway_type(cls, v):
+        v_lower = v.lower()
+        if v_lower not in ['ctp', 'sopt']:
+            raise ValueError('Gateway type must be either "ctp" or "sopt" (case insensitive)')
+        return v_lower
+
+
+class AccountValidationResponse(BaseModel):
+    """Response model for account validation."""
+    
+    success: bool = Field(..., description="Whether validation was successful")
+    message: str = Field(..., description="Validation result message")
+    account_id: str = Field(..., description="Account identifier")
+    gateway_type: str = Field(..., description="Gateway type")
+    timestamp: str = Field(..., description="Validation timestamp")
+    details: Dict[str, Any] = Field(default_factory=dict, description="Additional validation details")
+
+
+@router.post(
+    "/validate",
+    response_model=AccountValidationResponse,
+    summary="Validate account credentials",
+    description="Validate account credentials by attempting actual login during trading hours",
+    responses={
+        200: {
+            "description": "Validation completed (check success field for result)",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "message": "Account validation successful",
+                        "account_id": "test_account",
+                        "gateway_type": "ctp",
+                        "timestamp": "2025-06-27T10:30:45.123Z",
+                        "details": {"validation_time": "2025-06-27T10:30:45.123Z"}
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid request or non-trading hours"},
+        500: {"description": "Internal server error"}
+    }
+)
+async def validate_account(
+    validation_request: AccountValidationRequest = Body(..., description="Account validation data")
+) -> AccountValidationResponse:
+    """
+    Validate account credentials by attempting actual login.
+    
+    This endpoint attempts to connect to the trading gateway using the provided
+    credentials and returns the result. Validation is only performed during
+    trading hours to avoid unnecessary connections.
+    
+    Args:
+        validation_request: Account validation configuration
+        
+    Returns:
+        Validation result with success status and details
+        
+    Raises:
+        HTTPException: For invalid requests or server errors
+    """
+    try:
+        logger.info("Account validation requested", 
+                   account_id=validation_request.account_id,
+                   gateway_type=validation_request.gateway_type)
+        
+        # Perform validation
+        result = await account_validation_service.validate_account(
+            account_id=validation_request.account_id,
+            account_settings=validation_request.settings.model_dump(),
+            gateway_type=validation_request.gateway_type,
+            timeout_seconds=validation_request.timeout_seconds,
+            allow_non_trading_validation=validation_request.allow_non_trading_validation,
+            use_real_api_validation=validation_request.use_real_api_validation
+        )
+        
+        # Return structured response
+        return AccountValidationResponse(
+            success=result.success,
+            message=result.message,
+            account_id=validation_request.account_id,
+            gateway_type=validation_request.gateway_type,
+            timestamp=result.timestamp.isoformat(),
+            details=result.details
+        )
+        
+    except Exception as e:
+        logger.error("Account validation error", 
+                    account_id=validation_request.account_id, 
+                    error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Account validation failed: {str(e)}"
         )
 

@@ -60,7 +60,13 @@ export class ApiClient {
         throw error;
       }
 
-      const data = await response.json();
+      // Handle responses with no content (204)
+      let data: T;
+      if (response.status === 204 || response.headers.get('content-length') === '0') {
+        data = null as T;
+      } else {
+        data = await response.json();
+      }
       
       return {
         data,

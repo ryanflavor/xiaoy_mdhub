@@ -126,12 +126,12 @@ async def health_check() -> HealthResponse:
     # Get canary contract configuration from environment
     canary_config = None
     try:
-        ctp_contracts_str = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,AU2512")
+        ctp_contracts_str = os.getenv("CTP_CANARY_CONTRACTS", "ag2508,rb2601")
         sopt_contracts_str = os.getenv("SOPT_CANARY_CONTRACTS", "510050,159915")
         
         canary_config = CanaryContractConfig(
             ctp_contracts=ctp_contracts_str.split(","),
-            ctp_primary=os.getenv("CTP_CANARY_PRIMARY", "rb2601"),
+            ctp_primary=os.getenv("CTP_CANARY_PRIMARY", "ag2508"),
             sopt_contracts=sopt_contracts_str.split(","),
             sopt_primary=os.getenv("SOPT_CANARY_PRIMARY", "510050"), 
             heartbeat_timeout_seconds=int(os.getenv("CANARY_HEARTBEAT_TIMEOUT_SECONDS", "60"))
@@ -180,11 +180,15 @@ async def test_canary():
         Status of the test canary tick injection
     """
     try:
-        current_time = datetime.now()
+        # Use China timezone for consistency with health monitor
+        from app.utils.timezone import now_china
+        current_time = now_china()
         
         # Simulate tick data for canary contracts
         test_results = []
-        canary_contracts = ["rb2510", "au2512"]
+        ctp_contracts = os.getenv("CTP_CANARY_CONTRACTS", "ag2508").split(",")
+        sopt_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "510050,159915").split(",")
+        canary_contracts = ctp_contracts + sopt_contracts
         
         for contract in canary_contracts:
             health_monitor.update_canary_tick(
@@ -209,5 +213,5 @@ async def test_canary():
         return {
             "status": "error", 
             "message": str(e),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": now_china().isoformat()
         }

@@ -227,14 +227,66 @@ function DashboardContent() {
             </p>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {data.gateways.map((gateway: any) => (
-              <GatewayStatusCard
-                key={gateway.gateway_id}
-                gateway={gateway}
-                onAction={handleGatewayAction}
-              />
-            ))}
+          <div className="space-y-6">
+            {/* CTP Gateways */}
+            {(() => {
+              const ctpGateways = data.gateways
+                .filter((gateway: any) => gateway.gateway_type.toLowerCase() === 'ctp')
+                .sort((a: any, b: any) => a.priority - b.priority);
+              
+              return ctpGateways.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
+                    CTP Gateways 
+                    <Badge variant="outline" className="text-xs">
+                      期货期权
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      {ctpGateways.length}
+                    </Badge>
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {ctpGateways.map((gateway: any) => (
+                      <GatewayStatusCard
+                        key={gateway.gateway_id}
+                        gateway={gateway}
+                        onAction={handleGatewayAction}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* SOPT Gateways */}
+            {(() => {
+              const soptGateways = data.gateways
+                .filter((gateway: any) => gateway.gateway_type.toLowerCase() === 'sopt')
+                .sort((a: any, b: any) => a.priority - b.priority);
+              
+              return soptGateways.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
+                    SOPT Gateways 
+                    <Badge variant="outline" className="text-xs">
+                      个股期权
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      {soptGateways.length}
+                    </Badge>
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {soptGateways.map((gateway: any) => (
+                      <GatewayStatusCard
+                        key={gateway.gateway_id}
+                        gateway={gateway}
+                        onAction={handleGatewayAction}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

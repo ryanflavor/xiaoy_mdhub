@@ -80,49 +80,52 @@ class MarketDataAccountValidator(BaseModel):
         
         # Validate settings based on gateway type
         if gateway_type == 'ctp':
-            # Check for both direct fields and nested connect_setting structure
+            # Check for nested connect_setting structure first (new format)
             connect_setting = settings.get('connect_setting', {})
             
-            # For direct field format
-            if 'userID' in settings and 'password' in settings:
+            if connect_setting:
+                # Check for Chinese field names (new format)
+                chinese_required = ['用户名', '密码', '经纪商代码']
+                has_chinese = all(field in connect_setting and connect_setting[field] for field in chinese_required)
+                
+                # Check for English field names (legacy in nested format)
+                english_required = ['userID', 'password', 'brokerID']
+                has_english = all(field in connect_setting and connect_setting[field] for field in english_required)
+                
+                if not (has_chinese or has_english):
+                    raise ValueError('CTP gateway requires user credentials (用户名, 密码, 经纪商代码) or (userID, password, brokerID) in connect_setting')
+            # For direct field format (legacy flat structure)
+            elif 'userID' in settings and 'password' in settings:
                 required_fields = ['userID', 'password', 'brokerID', 'mdAddress']
                 for field in required_fields:
                     if field not in settings or not settings[field]:
                         raise ValueError(f'CTP gateway requires {field} in settings')
-            # For nested Chinese field format
-            elif connect_setting:
-                # Accept Chinese field names in connect_setting
-                chinese_required = ['用户名', '密码', '经纪商代码']
-                english_required = ['userID', 'password', 'brokerID']
-                
-                has_chinese = any(field in connect_setting for field in chinese_required)
-                has_english = any(field in connect_setting for field in english_required)
-                
-                if not (has_chinese or has_english):
-                    raise ValueError('CTP gateway requires user credentials in settings')
             else:
-                raise ValueError('CTP gateway requires connection settings')
+                raise ValueError('CTP gateway requires connection settings in connect_setting or as direct fields')
                 
         elif gateway_type == 'sopt':
-            # Check for both direct fields and nested connect_setting structure
+            # Check for nested connect_setting structure first (prioritize new format)
             connect_setting = settings.get('connect_setting', {})
             
-            # For direct field format
-            if 'username' in settings:
+            if connect_setting:
+                # Check for Chinese field names (SOPT only requires username, password is optional)
+                chinese_required = ['用户名']
+                has_chinese = all(field in connect_setting and connect_setting[field] for field in chinese_required)
+                
+                # Check for English field names in nested structure
+                english_required = ['username']
+                has_english = all(field in connect_setting and connect_setting[field] for field in english_required)
+                
+                if not (has_chinese or has_english):
+                    raise ValueError('SOPT gateway requires user credentials (用户名) or (username) in connect_setting')
+            # For direct field format (legacy)
+            elif 'username' in settings:
                 required_fields = ['username', 'serverAddress']
                 for field in required_fields:
                     if field not in settings or not settings[field]:
                         raise ValueError(f'SOPT gateway requires {field} in settings')
-            # For nested Chinese field format (which is the current database format)
-            elif connect_setting:
-                # Accept Chinese field names in connect_setting
-                chinese_fields = ['用户名', '密码']
-                has_required_chinese = any(field in connect_setting for field in chinese_fields)
-                
-                if not has_required_chinese:
-                    raise ValueError('SOPT gateway requires user credentials in connect_setting')
             else:
-                raise ValueError('SOPT gateway requires connection settings')
+                raise ValueError('SOPT gateway requires connection settings in connect_setting or as direct fields')
         
         # Skip AccountSettingsValidator for now since it expects English field names
         # and our database has Chinese field names

@@ -19,37 +19,69 @@ export interface MarketDataAccount extends BaseEntity {
 }
 
 /**
+ * Connection settings for trading gateways
+ */
+export interface ConnectSetting {
+  // Chinese field names (new format)
+  交易服务器?: string;
+  行情服务器?: string;
+  用户名?: string;
+  密码?: string;
+  经纪商代码?: string;
+  授权编码?: string;
+  产品信息?: string;
+  产品名称?: string;
+  
+  // English field names (legacy support)
+  userID?: string;
+  password?: string;
+  brokerID?: string;
+  authCode?: string;
+  appID?: string;
+  mdAddress?: string;
+  tdAddress?: string;
+  username?: string;
+  token?: string;
+  serverAddress?: string;
+  timeout?: number;
+  
+  /** Additional gateway-specific parameters */
+  [key: string]: any;
+}
+
+/**
+ * Gateway information
+ */
+export interface GatewayInfo {
+  gateway_class: string;
+  gateway_name: string;
+}
+
+/**
  * Account settings interface for vnpy gateway configurations.
- * This interface supports both CTP and SOPT gateway types with their specific parameters.
+ * Supports both new unified format and legacy flat format.
  */
 export interface AccountSettings {
-  // CTP specific settings
-  /** User ID for CTP authentication */
+  // New unified account format
+  broker?: string;
+  connect_setting?: ConnectSetting;
+  gateway?: GatewayInfo;
+  market?: string;
+  name?: string;
+  
+  // Legacy flat structure support for backward compatibility
   userID?: string;
-  /** Password for CTP authentication */
   password?: string;
-  /** Broker ID for CTP connection */
   brokerID?: string;
-  /** Authentication code for CTP */
   authCode?: string;
-  /** Application ID for CTP */
   appID?: string;
-  /** Market data server address for CTP */
   mdAddress?: string;
-  /** Trading server address for CTP */
   tdAddress?: string;
-
-  // SOPT specific settings
-  /** Username for SOPT authentication */
   username?: string;
-  /** Token for SOPT authentication */
   token?: string;
-  /** Server address for SOPT connection */
   serverAddress?: string;
-
-  // Common optional settings
-  /** Connection timeout in seconds */
   timeout?: number;
+  
   /** Additional gateway-specific parameters */
   [key: string]: any;
 }
@@ -68,12 +100,20 @@ export interface CreateAccountRequest {
   is_enabled: boolean;
   /** Optional description */
   description?: string;
+  /** Whether to validate connection before creating account */
+  validate_connection?: boolean;
+  /** Allow validation outside trading hours */
+  allow_non_trading_validation?: boolean;
+  /** Use real vnpy gateway API login validation instead of basic connectivity test */
+  use_real_api_validation?: boolean;
 }
 
 /**
  * Request interface for updating an existing market data account
  */
 export interface UpdateAccountRequest {
+  /** Updated gateway type */
+  gateway_type?: "ctp" | "sopt";
   /** Updated gateway settings */
   settings?: Partial<AccountSettings>;
   /** Updated priority level */
@@ -82,4 +122,66 @@ export interface UpdateAccountRequest {
   is_enabled?: boolean;
   /** Updated description */
   description?: string;
+}
+
+/**
+ * Request interface for account validation
+ */
+export interface AccountValidationRequest {
+  /** Account identifier for validation */
+  account_id: string;
+  /** Gateway type (ctp or sopt) */
+  gateway_type: "ctp" | "sopt";
+  /** Account settings to validate */
+  settings: AccountSettings;
+  /** Validation timeout in seconds */
+  timeout_seconds?: number;
+  /** Allow validation outside trading hours */
+  allow_non_trading_validation?: boolean;
+  /** Use real vnpy gateway API login validation */
+  use_real_api_validation?: boolean;
+}
+
+/**
+ * Response interface for account validation
+ */
+export interface AccountValidationResponse {
+  /** Whether validation was successful */
+  success: boolean;
+  /** Validation result message */
+  message: string;
+  /** Account identifier */
+  account_id: string;
+  /** Gateway type */
+  gateway_type: string;
+  /** Validation timestamp */
+  timestamp: string;
+  /** Additional validation details */
+  details: {
+    /** Error code if validation failed */
+    error_code?: string;
+    /** User-friendly error message */
+    user_friendly_message?: string;
+    /** Validation type performed */
+    validation_type?: string;
+    /** Whether trading time validation was performed */
+    is_trading_time?: boolean;
+    /** Connection test results */
+    connection_results?: Array<{
+      server_type: string;
+      host: string;
+      port: number;
+      status: string;
+      connect_time?: number;
+      error?: string;
+    }>;
+    /** Validation logs for real API validation */
+    logs?: string[];
+    /** Validation recommendations */
+    recommendations?: string[];
+    /** Troubleshooting steps */
+    troubleshooting_steps?: string[];
+    /** Additional details */
+    [key: string]: any;
+  };
 }

@@ -19,6 +19,7 @@ try:
     from vnpy.event import EventEngine, Event
     from vnpy.trader.setting import SETTINGS
     from vnpy.trader.engine import MainEngine
+    from vnpy.trader.constant import Exchange
     from vnpy_ctp import CtpGateway
     CTP_AVAILABLE = True
 except ImportError as e:
@@ -528,71 +529,59 @@ class GatewayManager:
         try:
             # Get canary contracts based on gateway type for consistent monitoring
             account = next((acc for acc in self.active_accounts if acc['id'] == account_id), None)
-            test_contracts = []
+            contracts_to_subscribe = []
             if account:
                 gateway_type = account['gateway_type'].lower()
                 if gateway_type == 'ctp':
                     # CTP canary contracts (futures)
                     canary_symbols = os.getenv("CTP_CANARY_CONTRACTS", "rb2510,au2512").split(",")
-                    test_contracts = [f"{symbol.strip()}.SHFE" for symbol in canary_symbols]
+                    for symbol in canary_symbols:
+                        symbol = symbol.strip()
+                        contracts_to_subscribe.append((symbol, Exchange.SHFE))
                 elif gateway_type == 'sopt':
                     # SOPT canary contracts (options and ETFs)
-                    canary_symbols = os.getenv("SOPT_CANARY_CONTRACTS", "510050,159915").split(",")
-                    # For SOPT, use appropriate exchanges
-                    test_contracts = []
+                    canary_symbols = os.getenv("SOPT_CANARY_CONTRACTS", "510300,510050").split(",")
                     for symbol in canary_symbols:
                         symbol = symbol.strip()
                         if symbol.startswith('51') or symbol.startswith('15'):  # ETF
-                            test_contracts.append(f"{symbol}.SSE")
+                            contracts_to_subscribe.append((symbol, Exchange.SSE))
                         else:
-                            test_contracts.append(f"{symbol}.SZSE")
+                            contracts_to_subscribe.append((symbol, Exchange.SZSE))
             
             # Fallback to default contracts if no account found
-            if not test_contracts:
-                test_contracts = [
-                    "rb2510.SHFE",  # Steel rebar futures October 2025 (canary)
-                    "au2512.SHFE",  # Gold futures December 2025 (canary)
+            if not contracts_to_subscribe:
+                contracts_to_subscribe = [
+                    ("rb2510", Exchange.SHFE),  # Steel rebar futures October 2025 (canary)
+                    ("au2512", Exchange.SHFE),  # Gold futures December 2025 (canary)
                 ]
             
-            for contract in test_contracts:
+            for symbol, exchange in contracts_to_subscribe:
                 try:
                     # Use vnpy's subscribe method to actually subscribe to tick data
-                    if hasattr(main_engine, 'subscribe'):
-                        # VNPy 3.x/4.x method with proper Exchange enum
-                        from vnpy.trader.object import SubscribeRequest
-                        from vnpy.trader.constant import Exchange
-                        
-                        # Parse symbol and exchange
-                        if '.' in contract:
-                            symbol, exchange_str = contract.split('.')
-                        else:
-                            symbol = contract
-                            exchange_str = 'SHFE'
-                        
-                        # Convert exchange string to Exchange enum
-                        try:
-                            exchange = Exchange(exchange_str)
-                        except ValueError:
-                            # Fallback to SHFE if exchange not recognized
-                            exchange = Exchange.SHFE
-                        
-                        req = SubscribeRequest(symbol=symbol, exchange=exchange)
-                        gateway_name = f"{account['gateway_type']}_{account_id}"
-                        main_engine.subscribe(req, gateway_name)
-                    else:
-                        # Alternative method for different vnpy versions
-                        main_engine.gateway_map[f"{account['gateway_type']}_{account_id}"].subscribe(contract)
+                    from vnpy.trader.object import SubscribeRequest
+                    
+                    # Create subscription request with pure symbol (no exchange suffix)
+                    req = SubscribeRequest(symbol=symbol, exchange=exchange)
+                    
+                    # Use correct gateway name format
+                    gateway_name = f"{account['gateway_type'].upper()}_{account_id}"
+                    
+                    # Subscribe through main engine
+                    main_engine.subscribe(req, gateway_name)
                     
                     self.logger.info(
                         "Subscribed to canary contract",
-                        symbol=contract,
+                        symbol=symbol,
+                        exchange=exchange.value,
                         account_id=account_id,
+                        gateway_name=gateway_name,
                         gateway_type=account['gateway_type']
                     )
                 except Exception as sub_error:
                     self.logger.warning(
                         "Contract subscription failed for specific contract",
-                        symbol=contract,
+                        symbol=symbol,
+                        exchange=exchange.value,
                         account_id=account_id,
                         error=str(sub_error)
                     )
@@ -1259,9 +1248,9 @@ class GatewayManager:
             if account:
                 gateway_type = account['gateway_type'].upper()  # Ensure uppercase comparison
                 if gateway_type == 'CTP':
-                    canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2601,au2512").split(",")
+                    canary_contracts = os.getenv("CTP_CANARY_CONTRACTS", "rb2510,au2512").split(",")
                 elif gateway_type == 'SOPT':
-                    canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "rb2601,au2512").split(",")
+                    canary_contracts = os.getenv("SOPT_CANARY_CONTRACTS", "510300,510050").split(",")
             
             # Extract base symbol (remove exchange suffix if present)
             base_symbol = symbol.split('.')[0] if '.' in symbol else symbol

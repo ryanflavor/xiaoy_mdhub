@@ -887,10 +887,25 @@ class HealthMonitor:
                     )
                     return False
                     
-                # Validate reasonable price range for steel rebar futures
+                # Validate reasonable price range for different futures contracts
                 if hasattr(tick_data, 'last_price'):
                     price = getattr(tick_data, 'last_price', 0)
-                    if price < 2000 or price > 6000:  # Reasonable range for rb contracts
+                    
+                    # Define price ranges for different contract types
+                    price_valid = True
+                    if contract.startswith('rb'):  # Steel rebar futures
+                        price_valid = 2000 <= price <= 6000
+                    elif contract.startswith('au'):  # Gold futures
+                        price_valid = 400 <= price <= 1200  # Gold price range in yuan per gram
+                    elif contract.startswith('ag'):  # Silver futures
+                        price_valid = 5 <= price <= 50  # Silver price range in yuan per gram
+                    elif contract.startswith('cu'):  # Copper futures
+                        price_valid = 40000 <= price <= 80000  # Copper price range in yuan per ton
+                    else:
+                        # For unknown contracts, use a very broad range
+                        price_valid = price > 0  # Just check it's positive
+                    
+                    if not price_valid:
                         self.logger.warning(
                             "CTP futures price out of range",
                             gateway_id=gateway_id,
